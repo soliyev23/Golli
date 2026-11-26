@@ -1,0 +1,172 @@
+{
+ "not_started": {
+  "id": 1325413711,
+  "round": "Regular Season - 12",
+  "date": "2026-11-29T16:30:00.000Z",
+  "country": {
+   "code": "GB-ENG",
+   "name": "England",
+   "logo": "https://highlightly.net/soccer/images/countries/GB-ENG.svg"
+  },
+  "state": {
+   "clock": null,
+   "score": {
+    "current": null,
+    "penalties": null
+   },
+   "description": "Not started"
+  },
+  "awayTeam": {
+   "id": 43334,
+   "logo": "https://highlightly.net/soccer/images/teams/43334.png",
+   "name": "Manchester City"
+  },
+  "homeTeam": {
+   "id": 36526,
+   "logo": "https://highlightly.net/soccer/images/teams/36526.png",
+   "name": "Arsenal"
+  },
+  "league": {
+   "id": 33973,
+   "logo": "https://highlightly.net/soccer/images/leagues/33973.png",
+   "name": "Premier League",
+   "season": 2026
+  }
+ },
+ "finished": {
+  "id": 1391932126,
+  "round": "League Stage - 5",
+  "date": "2026-11-25T20:00:00.000Z",
+  "country": {
+   "code": "World",
+   "name": "World",
+   "logo": "https://highlightly.net/soccer/images/countries/World.png"
+  },
+  "state": {
+   "clock": 90,
+   "score": {
+    "current": "0 - 3",
+    "penalties": null
+   },
+   "description": "Finished"
+  },
+  "awayTeam": {
+   "id": 34824,
+   "logo": "https://highlightly.net/soccer/images/teams/34824.png",
+   "name": "Liverpool"
+  },
+  "homeTeam": {
+   "id": 485003,
+   "logo": "https://highlightly.net/soccer/images/teams/485003.png",
+   "name": "Club Brugge KV"
+  },
+  "league": {
+   "id": 2486,
+   "logo": "https://highlightly.net/soccer/images/leagues/2486.png",
+   "name": "UEFA Champions League",
+   "season": 2026
+  }
+ },
+ "penalties": {
+  "id": 1354740022,
+  "round": "2nd Qualifying Round",
+  "date": "2026-07-29T15:00:00.000Z",
+  "country": {
+   "code": "World",
+   "name": "World",
+   "logo": "https://highlightly.net/soccer/images/countries/World.png"
+  },
+  "state": {
+   "clock": 120,
+   "score": {
+    "current": "1 - 0",
+    "penalties": "6 - 5"
+   },
+   "description": "Finished after penalties"
+  },
+  "awayTeam": {
+   "id": 2895886,
+   "logo": "https://highlightly.net/soccer/images/teams/2895886.png",
+   "name": "Omonia Nicosia"
+  },
+  "homeTeam": {
+   "id": 565848,
+   "logo": "https://highlightly.net/soccer/images/teams/565848.png",
+   "name": "Kairat Almaty"
+  },
+  "league": {
+   "id": 2486,
+   "logo": "https://highlightly.net/soccer/images/leagues/2486.png",
+   "name": "UEFA Champions League",
+   "season": 2026
+  }
+ },
+ "extra_time": {
+  "id": 1380857212,
+  "round": "Play-offs",
+  "date": "2026-08-26T19:00:00.000Z",
+  "country": {
+   "code": "World",
+   "name": "World",
+   "logo": "https://highlightly.net/soccer/images/countries/World.png"
+  },
+  "state": {
+   "clock": 120,
+   "score": {
+    "current": "1 - 2",
+    "penalties": null
+   },
+   "description": "Finished after extra time"
+  },
+  "awayTeam": {
+   "id": 559040,
+   "logo": "https://highlightly.net/soccer/images/teams/559040.png",
+   "name": "Slovan Bratislava"
+  },
+  "homeTeam": {
+   "id": 3711144,
+   "logo": "https://highlightly.net/soccer/images/teams/3711144.png",
+   "name": "Celje"
+  },
+  "league": {
+   "id": 2486,
+   "logo": "https://highlightly.net/soccer/images/leagues/2486.png",
+   "name": "UEFA Champions League",
+   "season": 2026
+  }
+ },
+ "abandoned": {
+  "id": 1336419694,
+  "round": "Regular Season - 8",
+  "date": "2026-10-10T12:00:00.000Z",
+  "country": {
+   "code": "ES",
+   "name": "Spain",
+   "logo": "https://highlightly.net/soccer/images/countries/ES.svg"
+  },
+  "state": {
+   "clock": null,
+   "score": {
+    "current": "0 - 0",
+    "penalties": null
+   },
+   "description": "Abandoned"
+  },
+  "awayTeam": {
+   "id": 452665,
+   "logo": "https://highlightly.net/soccer/images/teams/452665.png",
+   "name": "Athletic Club"
+  },
+  "homeTeam": {
+   "id": 620312,
+   "logo": "https://highlightly.net/soccer/images/teams/620312.png",
+   "name": "Rayo Vallecano"
+  },
+  "league": {
+   "id": 119924,
+   "logo": "https://highlightly.net/soccer/images/leagues/119924.png",
+   "name": "La Liga",
+   "season": 2026
+  }
+ }
+}

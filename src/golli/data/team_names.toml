@@ -1,0 +1,288 @@
+# Klub nomlarining tarjimalari. Kalit — provayder (Highlightly) bergan nom.
+# "en" faqat provayder nomi noqulay bo'lganda yoziladi; bo'lmasa provayder nomi ishlatiladi.
+
+# --- Angliya Premer-ligasi
+
+["Arsenal"]
+uz = "Arsenal"
+ru = "Арсенал"
+
+["Aston Villa"]
+uz = "Aston Villa"
+ru = "Астон Вилла"
+
+["Bournemouth"]
+uz = "Bornmut"
+ru = "Борнмут"
+
+["Brentford"]
+uz = "Brentford"
+ru = "Брентфорд"
+
+["Brighton"]
+uz = "Brayton"
+ru = "Брайтон"
+
+["Chelsea"]
+uz = "Chelsi"
+ru = "Челси"
+
+["Coventry"]
+uz = "Koventri"
+ru = "Ковентри"
+
+["Crystal Palace"]
+uz = "Kristal Pelas"
+ru = "Кристал Пэлас"
+
+["Everton"]
+uz = "Everton"
+ru = "Эвертон"
+
+["Fulham"]
+uz = "Fulxem"
+ru = "Фулхэм"
+
+["Hull City"]
+uz = "Hall Siti"
+ru = "Халл Сити"
+
+["Ipswich"]
+uz = "Ipsvich"
+ru = "Ипсвич"
+
+["Leeds"]
+uz = "Lids"
+ru = "Лидс"
+
+["Liverpool"]
+uz = "Liverpul"
+ru = "Ливерпуль"
+
+["Manchester City"]
+uz = "Manchester Siti"
+ru = "Манчестер Сити"
+
+["Manchester United"]
+uz = "Manchester Yunayted"
+ru = "Манчестер Юнайтед"
+
+["Newcastle United"]
+uz = "Nyukasl"
+ru = "Ньюкасл"
+en = "Newcastle"
+
+["Nottingham Forest"]
+uz = "Nottingem Forest"
+ru = "Ноттингем Форест"
+
+["Sunderland"]
+uz = "Sanderlend"
+ru = "Сандерленд"
+
+["Tottenham"]
+uz = "Tottenxem"
+ru = "Тоттенхэм"
+
+# --- La Liga
+
+["Alavés"]
+uz = "Alaves"
+ru = "Алавес"
+
+["Athletic Club"]
+uz = "Atletik Bilbao"
+ru = "Атлетик Бильбао"
+
+["Atlético Madrid"]
+uz = "Atletiko Madrid"
+ru = "Атлетико Мадрид"
+
+["Barcelona"]
+uz = "Barselona"
+ru = "Барселона"
+
+["Celta de Vigo"]
+uz = "Selta"
+ru = "Сельта"
+en = "Celta Vigo"
+
+["Deportivo La Coruña"]
+uz = "Deportivo"
+ru = "Депортиво"
+en = "Deportivo La Coruña"
+
+["Elche"]
+uz = "Elche"
+ru = "Эльче"
+
+["Espanyol"]
+uz = "Espanyol"
+ru = "Эспаньол"
+
+["Getafe"]
+uz = "Xetafe"
+ru = "Хетафе"
+
+["Levante"]
+uz = "Levante"
+ru = "Леванте"
+
+["Malaga"]
+uz = "Malaga"
+ru = "Малага"
+en = "Málaga"
+
+["Osasuna"]
+uz = "Osasuna"
+ru = "Осасуна"
+
+["Racing Santander"]
+uz = "Rasing Santander"
+ru = "Расинг Сантандер"
+
+["Rayo Vallecano"]
+uz = "Rayo Valyekano"
+ru = "Райо Вальекано"
+
+["Real Betis"]
+uz = "Betis"
+ru = "Бетис"
+
+["Real Madrid"]
+uz = "Real Madrid"
+ru = "Реал Мадрид"
+
+["Real Sociedad"]
+uz = "Real Sosedad"
+ru = "Реал Сосьедад"
+
+["Sevilla FC"]
+uz = "Sevilya"
+ru = "Севилья"
+en = "Sevilla"
+
+["Valencia"]
+uz = "Valensiya"
+ru = "Валенсия"
+
+["Villarreal"]
+uz = "Vilyarreal"
+ru = "Вильярреал"
+
+# --- Chempionlar ligasi (yuqoridagilardan tashqari, asosiy bosqich klublari)
+
+["AEK Athens FC"]
+uz = "AEK"
+ru = "АЕК"
+en = "AEK Athens"
+
+["AS Roma"]
+uz = "Roma"
+ru = "Рома"
+en = "Roma"
+
+["Bayern Munich"]
+uz = "Bavariya"
+ru = "Бавария"
+
+["Bodø/Glimt"]
+uz = "Budyo-Glimt"
+ru = "Будё-Глимт"
+
+["Borussia Dortmund"]
+uz = "Borussiya Dortmund"
+ru = "Боруссия Дортмунд"
+
+["Club Brugge KV"]
+uz = "Bryugge"
+ru = "Брюгге"
+en = "Club Brugge"
+
+["Como"]
+uz = "Komo"
+ru = "Комо"
+
+["FC Porto"]
+uz = "Portu"
+ru = "Порту"
+en = "Porto"
+
+["Fenerbahce"]
+uz = "Fenerbaxche"
+ru = "Фенербахче"
+en = "Fenerbahçe"
+
+["Feyenoord"]
+uz = "Feyenoord"
+ru = "Фейеноорд"
+
+["Galatasaray"]
+uz = "Galatasaroy"
+ru = "Галатасарай"
+
+["Inter"]
+uz = "Inter"
+ru = "Интер"
+
+["LASK Linz"]
+uz = "LASK"
+ru = "ЛАСК"
+en = "LASK"
+
+["Lens"]
+uz = "Lans"
+ru = "Ланс"
+
+["Lille"]
+uz = "Lill"
+ru = "Лилль"
+
+["Napoli"]
+uz = "Napoli"
+ru = "Наполи"
+
+["PSV Eindhoven"]
+uz = "PSV"
+ru = "ПСВ"
+en = "PSV"
+
+["Paris Saint Germain"]
+uz = "PSJ"
+ru = "ПСЖ"
+en = "Paris Saint-Germain"
+
+["RB Leipzig"]
+uz = "Leypsig"
+ru = "РБ Лейпциг"
+
+["Sabah FA"]
+uz = "Sabah"
+ru = "Сабах"
+en = "Sabah"
+
+["Shakhtar Donetsk"]
+uz = "Shaxtyor"
+ru = "Шахтёр"
+
+["Slavia Praha"]
+uz = "Slaviya Praga"
+ru = "Славия Прага"
+en = "Slavia Prague"
+
+["Slovan Bratislava"]
+uz = "Slovan"
+ru = "Слован"
+
+["Sporting CP"]
+uz = "Sporting"
+ru = "Спортинг"
+
+["VfB Stuttgart"]
+uz = "Shtutgart"
+ru = "Штутгарт"
+en = "Stuttgart"
+
+["Viking"]
+uz = "Viking"
+ru = "Викинг"

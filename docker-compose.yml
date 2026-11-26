@@ -1,0 +1,82 @@
+name: golli
+
+# Bot va migratsiya uchun umumiy sozlama. .env dagi POSTGRES_HOST/REDIS_URL lokal
+# ishga tushirishga mo'ljallangan, konteyner ichida esa servis nomlari ishlatiladi.
+# Loglar cheklanmasa, vaqt o'tib diskni to'ldiradi.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+x-app: &app
+  build: .
+  env_file: .env
+  environment:
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: "5432"
+    REDIS_URL: redis://redis:6379/0
+  restart: unless-stopped
+  logging: *logging
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-golli}
+      POSTGRES_USER: ${POSTGRES_USER:-golli}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env faylida berilishi kerak}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  bot:
+    <<: *app
+    command: ["python", "-m", "golli.bot"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # Fon jarayoni: futbol ma'lumotlarini API'dan olib, bazaga va keshga yozadi.
+  # Faqat bitta nusxada ishlashi kerak.
+  worker:
+    <<: *app
+    command: ["python", "-m", "golli.worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
