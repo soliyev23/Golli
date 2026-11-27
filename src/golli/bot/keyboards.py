@@ -29,6 +29,20 @@ def main_menu(t: Translator) -> ReplyKeyboardMarkup:
     )
 
 
+def sections_menu(t: Translator) -> ReplyKeyboardMarkup:
+    """Pley-off bosqichi bor turnir tanlanganda: jadval yoki pley-off juftliklari."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=t("menu-table")),
+                KeyboardButton(text=t("menu-knockout")),
+            ],
+            [KeyboardButton(text=t("menu-back"))],
+        ],
+        resize_keyboard=True,
+    )
+
+
 def leagues_menu(t: Translator, *, done: bool = False) -> ReplyKeyboardMarkup:
     """Ligalar ro'yxati va "Orqaga". Sevimli klublar va turnirlar bo'limlarida ishlatiladi.
 

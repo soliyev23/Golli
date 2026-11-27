@@ -106,7 +106,7 @@ class ClubEmojiSyncer:
                     self._broken_until[team.id] = now + BROKEN_LOGO_DELAY
                     logger.warning("Logotip olinmadi (%s): %s", team.name, exc)
                     continue
-                emoji_id = await self._add_emoji(team, image)
+                emoji_id = await self._add_emoji(team.name, image)
                 async with self._session_factory.begin() as session:
                     stored = await session.get(Team, team.id)
                     stored.emoji_id = emoji_id
@@ -141,12 +141,15 @@ class ClubEmojiSyncer:
         async with self._session_factory() as session:
             return list(await session.scalars(query))
 
-    async def _add_emoji(self, team: Team, image: bytes) -> str:
-        """Rasmni to'plamga qo'shib, yangi emoji identifikatorini qaytaradi."""
+    async def _add_emoji(self, label: str, image: bytes) -> str:
+        """Rasmni to'plamga qo'shib, emoji identifikatorini qaytaradi.
+
+        `label` — xato matnida ko'rsatiladigan nom.
+        """
         if self._set_emoji is None:
             await self._open_set()
         sticker = InputSticker(
-            sticker=BufferedInputFile(image, filename=f"club-{team.id}.png"),
+            sticker=BufferedInputFile(image, filename="emoji.png"),
             format="static",
             emoji_list=[FALLBACK_EMOJI],
         )
@@ -168,7 +171,7 @@ class ClubEmojiSyncer:
         after = await self._read_set(self._set_name)
         added = (after or set()) - before
         if len(added) != 1:
-            raise EmojiSetError(f"{team.name}: to'plamda {len(added)} ta yangi emoji (1 kutilgan)")
+            raise EmojiSetError(f"{label}: to'plamda {len(added)} ta yangi emoji (1 kutilgan)")
         self._set_exists, self._set_emoji = True, after
         if len(after) >= SET_LIMIT:
             # To'plam to'ldi: keyingi emoji yangi to'plamga tushadi.

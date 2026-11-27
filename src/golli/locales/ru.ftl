@@ -11,6 +11,8 @@ cmd-help = Помощь
 menu-matches = ⚽ Ближайшие матчи
 menu-recent = 🏁 Последние матчи
 menu-tournaments = 🏆 Турниры
+menu-table = 📊 Таблица
+menu-knockout = 🏆 Плей-офф
 menu-favorites = ⭐ Любимые клубы
 menu-language = 🌐 Язык
 menu-settings = ⚙️ Настройки
@@ -106,6 +108,20 @@ standings-col-losses = П
 standings-col-goals = М
 standings-col-points = О
 standings-updated = 🕐 Обновлено: { $time }
+# Названия стадий плей-офф (показываются рядом с названием лиги).
+stage-playoff = Стыковые матчи
+stage-round16 = 1/8 финала
+stage-quarter = Четвертьфинал
+stage-semi = Полуфинал
+stage-final = Финал
+matches-aggregate-note = В скобках — счёт по сумме двух матчей
+tournaments-sections-text =
+    <b>{ $league }</b>
+
+    Что показать? 👇
+# Таблица пар плей-офф: 1 и 2 — первый и ответный матчи, затем счёт по сумме двух матчей.
+knockout-col-total = Итог
+knockout-empty = Пары плей-офф появятся здесь после жеребьёвки.
 standings-empty = Таблица пока не загружена. Попробуйте чуть позже.
 
 ## Любимые клубы
@@ -133,3 +149,7 @@ notify-morning-title = ☀️ <b>Играет ваш любимый клуб</b>
 notify-pre-hour = ⏰ <b>До матча остался 1 час</b>
 notify-pre-minutes = ⏰ <b>До матча { $minutes } мин.</b>
 notify-result-title = 🏁 <b>Матч окончен</b>
+notify-first-leg = Первый матч: { $score }
+notify-aggregate = По сумме двух матчей: { $score }
+notify-advances = ➡️ В следующий раунд: { $team }
+notify-champion = 🏆 Победитель: { $team }

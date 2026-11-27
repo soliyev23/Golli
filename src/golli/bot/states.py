@@ -22,6 +22,9 @@ class TournamentsFlow(StatesGroup):
     """Turnirlar bo'limi: liga tugmasi bosilsa, shu liganing jadvali ko'rsatiladi."""
 
     leagues = State()
+    # Pley-off bosqichi bor turnir tanlangan: "Jadval" yoki "Pley-off". Qaysi turnir ekani
+    # holat ma'lumotida ("competition") turadi.
+    sections = State()
 
 
 async def open_favorites(state: FSMContext, origin: str) -> None:

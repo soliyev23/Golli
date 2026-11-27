@@ -11,6 +11,8 @@ cmd-help = Yordam
 menu-matches = ⚽ Yaqin o'yinlar
 menu-recent = 🏁 Oxirgi o'yinlar
 menu-tournaments = 🏆 Turnirlar
+menu-table = 📊 Jadval
+menu-knockout = 🏆 Pley-off
 menu-favorites = ⭐ Sevimli klublar
 menu-language = 🌐 Til
 menu-settings = ⚙️ Sozlamalar
@@ -38,7 +40,7 @@ start-welcome =
 help-text =
     <b>Golli nima qiladi?</b>
 
-    ⚽ <b>Yaqin o'yinlar</b> — Chempionlar ligasi, APL va La Liga o'yinlari, Toshkent vaqti bilan.
+    ⚽ <b>Yaqin o'yinlar</b> — Chempionlar ligasi, APL va La Liga o'yinlari, O'zbekiston vaqti bilan.
 
     🏁 <b>Oxirgi o'yinlar</b> — oxirgi ikki o'yin kunining natijalari.
 
@@ -106,6 +108,20 @@ standings-col-losses = M
 standings-col-goals = T
 standings-col-points = O
 standings-updated = 🕐 Yangilangan: { $time }
+# Pley-off bosqichlari nomlari (liga nomi yonida ko'rsatiladi).
+stage-playoff = Pley-off
+stage-round16 = 1/8 final
+stage-quarter = Chorak final
+stage-semi = Yarim final
+stage-final = Final
+matches-aggregate-note = Qavs ichida — ikki o'yin yig'indisi
+tournaments-sections-text =
+    <b>{ $league }</b>
+
+    Nimani ko'rsatay? 👇
+# Pley-off juftliklari jadvali: 1 va 2 — birinchi va javob o'yinlari, keyin ikki o'yin yig'indisi.
+knockout-col-total = Jami
+knockout-empty = Pley-off juftliklari qur'adan keyin shu yerda chiqadi.
 standings-empty = Jadval hali yuklanmagan. Birozdan keyin urinib ko'ring.
 
 ## Sevimli klublar
@@ -133,3 +149,7 @@ notify-morning-title = ☀️ <b>Sevimli klubingiz o'ynaydi</b>
 notify-pre-hour = ⏰ <b>O'yinga 1 soat qoldi</b>
 notify-pre-minutes = ⏰ <b>O'yinga { $minutes } daqiqa qoldi</b>
 notify-result-title = 🏁 <b>O'yin tugadi</b>
+notify-first-leg = Birinchi o'yin: { $score }
+notify-aggregate = Ikki o'yin yig'indisi: { $score }
+notify-advances = ➡️ Keyingi bosqichga: { $team }
+notify-champion = 🏆 G'olib: { $team }

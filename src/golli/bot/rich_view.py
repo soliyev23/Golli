@@ -23,11 +23,12 @@ from aiogram.types import (
 from babel.dates import format_datetime
 
 from golli.bot import views
-from golli.competitions import COMPETITIONS
+from golli.competitions import STAGE_ORDER
 from golli.db.standings import StandingRow
 from golli.i18n import Translator
 from golli.providers.base import MatchStatus
 from golli.services.club_emoji import FALLBACK_EMOJI
+from golli.services.knockout import Tie, advancing_side, aggregate_of
 from golli.services.schedule import DayMatch
 from golli.services.team_names import TeamNames
 
@@ -59,28 +60,33 @@ def _cell(
     )
 
 
-def _club(name: str, emoji_id: str | None, *, nowrap: bool = False) -> RichText:
+def _club(name: str, emoji_id: str | None, *, nowrap: bool = False, bold: bool = False) -> RichText:
     """Klub logotipi va nomi. Logotipi yo'q klubda ham o'rni band: ustun tekis tursin.
 
     `nowrap` — bo'shliqlar bo'linmaydigan bo'shliqqa almashtiriladi: tor ustunda ham
-    "Real Madrid" ikki qatorga bo'linib ketmaydi.
+    "Real Madrid" ikki qatorga bo'linib ketmaydi. `bold` — nom qalin yoziladi (pley-offda
+    keyingi bosqichga chiqqan klub).
     """
     space = NBSP if nowrap else " "
     name = name.replace(" ", space)
+    shown: RichText = RichTextBold(text=name) if bold else name
     if emoji_id is None:
-        return f"{FALLBACK_EMOJI}{space}{name}"
+        return [f"{FALLBACK_EMOJI}{space}", shown] if bold else f"{FALLBACK_EMOJI}{space}{name}"
     logo = RichTextCustomEmoji(custom_emoji_id=emoji_id, alternative_text=FALLBACK_EMOJI)
-    return [logo, f"{space}{name}"]
+    return [logo, space, shown] if bold else [logo, f"{space}{name}"]
 
 
-def _score(match: DayMatch, t: Translator) -> str:
-    if match.home_score is None or match.away_score is None:
-        return views.NO_SCORE
-    score = f"{match.home_score}:{match.away_score}"
+def _score(match: DayMatch, t: Translator) -> RichText:
+    """Hisob qalin yozuvda; javob o'yinida yonida ikki o'yin yig'indisi, kerak bo'lsa penaltilar."""
+    has_score = match.home_score is not None and match.away_score is not None
+    score = f"{match.home_score}:{match.away_score}" if has_score else views.NO_SCORE
+    extra = ""
+    if total := views.aggregate_text(match):
+        extra += f" {total}"
     if match.home_penalties is not None and match.away_penalties is not None:
         penalties = t("penalties", home=match.home_penalties, away=match.away_penalties)
-        score += f" ({penalties})"
-    return score
+        extra += f" ({penalties})"
+    return [RichTextBold(text=score), extra] if extra else RichTextBold(text=score)
 
 
 def _match_table(
@@ -95,7 +101,7 @@ def _match_table(
     notes: list[str] = []
     for match in matches:
         if match.status is MatchStatus.FINISHED:
-            lead, middle = None, RichTextBold(text=_score(match, t))
+            lead, middle = None, _score(match, t)
         elif match.status in views._STATUS_NOTES:
             icon, note = views._STATUS_NOTES[match.status]
             lead, middle = icon, VERSUS
@@ -103,19 +109,22 @@ def _match_table(
             if legend not in notes:
                 notes.append(legend)
         elif views.is_live(match, now):
-            lead, middle = views.LIVE_MARK, RichTextBold(text=_score(match, t))
+            lead, middle = views.LIVE_MARK, _score(match, t)
         else:
-            lead, middle = match.kickoff_at.astimezone(tz).strftime("%H:%M"), VERSUS
+            # Javob o'yini hali boshlanmagan: chiziqcha yonida birinchi o'yindan keyingi yig'indi.
+            total = views.aggregate_text(match)
+            lead = match.kickoff_at.astimezone(tz).strftime("%H:%M")
+            middle = f"{VERSUS} {total}" if total else VERSUS
         rows.append((lead, middle, match))
 
     with_lead = any(lead is not None for lead, _, _ in rows)
     cells = []
     for lead, middle, match in rows:
-        row = [
-            _cell(_club(names.short(match.home, t.locale), match.home_emoji)),
-            _cell(middle, "center"),
-            _cell(_club(names.short(match.away, t.locale), match.away_emoji)),
-        ]
+        # Pley-offda keyingi bosqichga chiqqan klub nomi qalin yoziladi.
+        winner = advancing_side(match)
+        home = _club(names.short(match.home, t.locale), match.home_emoji, bold=winner == "home")
+        away = _club(names.short(match.away, t.locale), match.away_emoji, bold=winner == "away")
+        row = [_cell(home), _cell(middle, "center"), _cell(away)]
         cells.append([_cell(lead), *row] if with_lead else row)
     return InputRichBlockTable(cells=cells, is_compact=True), notes
 
@@ -137,12 +146,9 @@ def _days_blocks(
         if not matches:
             blocks.append(InputRichBlockParagraph(text=t("matches-none")))
             continue
-        for competition in COMPETITIONS:
-            group = [match for match in matches if match.competition == competition]
-            if not group:
-                continue
+        for competition, stage, group in views.league_groups(matches):
             table, table_notes = _match_table(group, now, t, names, tz)
-            blocks += [_heading(t(f"competition-{competition}"), LEAGUE_SIZE), table]
+            blocks += [_heading(views.league_title(competition, stage, t), LEAGUE_SIZE), table]
             notes += [note for note in table_notes if note not in notes]
 
     all_matches = [match for _, matches in days for match in matches]
@@ -151,6 +157,8 @@ def _days_blocks(
         notes.append(t("matches-footer"))
     if any(views.is_live(match, now) for match in all_matches):
         notes.append(t("matches-live-note"))
+    if any(aggregate_of(m) for m in all_matches if m.status not in views._STATUS_NOTES):
+        notes.append(t("matches-aggregate-note"))
     return [*blocks, *(InputRichBlockFooter(text=note) for note in notes)]
 
 
@@ -242,4 +250,99 @@ def standings_message(
     blocks += [
         InputRichBlockFooter(text=t("standings-updated", time=updated)),
     ]
+    return InputRichMessage(blocks=blocks)
+
+
+# --- Pley-off juftliklari
+
+
+def _leg(match: DayMatch | None, tz: tzinfo, *, flipped: bool = False) -> str:
+    """Bitta o'yin katagi: o'ynalgan bo'lsa hisob, bo'lmasa sanasi.
+
+    `flipped` — javob o'yini: unda klublar joy almashgan, hisob esa juftlik tartibida yoziladi.
+    """
+    if match is None:
+        return VERSUS
+    if match.home_score is None or match.away_score is None:
+        return match.kickoff_at.astimezone(tz).strftime("%d.%m")
+    home, away = match.home_score, match.away_score
+    return f"{away}:{home}" if flipped else f"{home}:{away}"
+
+
+def _tie_total(tie: Tie, t: Translator) -> RichText | None:
+    """Ikki o'yin yig'indisi (juftlik tartibida), kerak bo'lsa penaltilar bilan."""
+    legs = [
+        leg for leg in (tie.first, tie.second) if leg is not None and leg.home_score is not None
+    ]
+    if not legs:
+        return None
+    left = sum(m.home_score if m is tie.first else m.away_score for m in legs)
+    right = sum(m.away_score if m is tie.first else m.home_score for m in legs)
+    total: list = [RichTextBold(text=f"{left}:{right}")]
+    decider = tie.second or tie.first
+    if decider.home_penalties is not None and decider.away_penalties is not None:
+        flipped = decider is tie.second
+        home = decider.away_penalties if flipped else decider.home_penalties
+        away = decider.home_penalties if flipped else decider.away_penalties
+        total.append(f" ({t('penalties', home=home, away=away)})")
+    return total
+
+
+def _tie_winner(tie: Tie) -> str | None:
+    """Keyingi bosqichga chiqqan klub juftlikning qaysi tomonida: "left", "right" yoki None."""
+    decider = tie.second or tie.first
+    side = advancing_side(decider)
+    if side is None:
+        return None
+    if decider is tie.second:
+        # Javob o'yinida mezbon — juftlikning o'ng tomonidagi klub.
+        return "right" if side == "home" else "left"
+    return "left" if side == "home" else "right"
+
+
+def knockout_message(
+    competition: str, ties: list[Tie], t: Translator, names: TeamNames, tz: tzinfo
+) -> InputRichMessage:
+    """Pley-off juftliklari, eng so'nggi bosqich tepada.
+
+    Ikki o'yinli bosqich ustunlari: klub | 1-o'yin | 2-o'yin | jami | klub. Hisoblar juftlik
+    tartibida (chapdagi klub gollari oldin). Keyingi bosqichga chiqqan klub nomi qalin.
+    """
+    blocks: list = [_heading(t(f"competition-{competition}"), TITLE_SIZE)]
+    for stage in STAGE_ORDER:
+        stage_ties = [tie for tie in ties if tie.stage == stage]
+        if not stage_ties:
+            continue
+        two_legged = any(tie.second is not None for tie in stage_ties)
+        cells: list[list[RichBlockTableCell]] = []
+        if two_legged:
+            cells.append(
+                [
+                    _cell(None, header=True),
+                    _cell("1", "center", header=True),
+                    _cell("2", "center", header=True),
+                    _cell(t("knockout-col-total"), "center", header=True),
+                    _cell(None, header=True),
+                ]
+            )
+        for tie in stage_ties:
+            winner = _tie_winner(tie)
+            first = tie.first
+            left = _club(names.short(first.home, t.locale), first.home_emoji, bold=winner == "left")
+            right = _club(
+                names.short(first.away, t.locale), first.away_emoji, bold=winner == "right"
+            )
+            if two_legged:
+                middle = [
+                    _cell(_leg(first, tz), "center"),
+                    _cell(_leg(tie.second, tz, flipped=True), "center"),
+                    _cell(_tie_total(tie, t) or VERSUS, "center"),
+                ]
+            else:
+                middle = [_cell(_tie_total(tie, t) or _leg(first, tz), "center")]
+            cells.append([_cell(left), *middle, _cell(right)])
+        blocks += [
+            _heading(t(f"stage-{stage}"), LEAGUE_SIZE),
+            InputRichBlockTable(cells=cells, is_compact=True),
+        ]
     return InputRichMessage(blocks=blocks)

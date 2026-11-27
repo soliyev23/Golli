@@ -11,10 +11,13 @@ from html import escape
 
 from babel.dates import format_datetime
 
-from golli.bot.views import fit_entities
+from golli.bot.views import VERSUS, fit_entities
+from golli.competitions import STAGE_ORDER
 from golli.db.standings import StandingRow
 from golli.i18n import Translator
 from golli.services.club_emoji import FALLBACK_EMOJI
+from golli.services.knockout import Tie
+from golli.services.schedule import DayMatch
 from golli.services.team_names import TeamNames
 
 # Sarlavha qatorida logotip o'rnini egallaydi: ustunlar klub qatorlari bilan bir chiziqda tursin.
@@ -94,3 +97,31 @@ def render_standings(
     # Katta jadval (Chempionlar ligasi, 36 qator) limitga sig'maydi: unda qator oxiridagi bo'lak
     # keyingi qator boshidagi bilan ulanadi va qatoriga uchta emas, ikkita element sarflanadi.
     return fit_entities("\n".join(lines))
+
+
+def render_knockout(
+    competition: str, ties: list[Tie], t: Translator, names: TeamNames, tz: tzinfo
+) -> str:
+    """Pley-off juftliklari oddiy matnda (jadvalli xabar o'tmagan holat uchun)."""
+    lines = [f"<b>{t(f'competition-{competition}')}</b>"]
+    for stage in STAGE_ORDER:
+        stage_ties = [tie for tie in ties if tie.stage == stage]
+        if not stage_ties:
+            continue
+        lines += ["", f"<b>{t(f'stage-{stage}')}</b>"]
+        for tie in stage_ties:
+            home = escape(names.short(tie.first.home, t.locale), quote=False)
+            away = escape(names.short(tie.first.away, t.locale), quote=False)
+            scores = [_leg_text(tie.first, tz)]
+            if tie.second is not None:
+                scores.append(_leg_text(tie.second, tz, flipped=True))
+            lines.append(f"{home}{VERSUS}{away}: {', '.join(scores)}")
+    return "\n".join(lines)
+
+
+def _leg_text(match: DayMatch, tz: tzinfo, *, flipped: bool = False) -> str:
+    """O'ynalgan o'yin hisobi (juftlik tartibida) yoki o'ynalmagan o'yin sanasi."""
+    if match.home_score is None or match.away_score is None:
+        return match.kickoff_at.astimezone(tz).strftime("%d.%m")
+    home, away = match.home_score, match.away_score
+    return f"{away}:{home}" if flipped else f"{home}:{away}"

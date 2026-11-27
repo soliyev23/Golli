@@ -11,6 +11,8 @@ cmd-help = Help
 menu-matches = ⚽ Upcoming matches
 menu-recent = 🏁 Recent matches
 menu-tournaments = 🏆 Tournaments
+menu-table = 📊 Table
+menu-knockout = 🏆 Knockout
 menu-favorites = ⭐ Favourite clubs
 menu-language = 🌐 Language
 menu-settings = ⚙️ Settings
@@ -106,6 +108,20 @@ standings-col-losses = L
 standings-col-goals = G
 standings-col-points = Pt
 standings-updated = 🕐 Updated: { $time }
+# Knockout stage names (shown next to the league name).
+stage-playoff = Play-offs
+stage-round16 = Round of 16
+stage-quarter = Quarter-finals
+stage-semi = Semi-finals
+stage-final = Final
+matches-aggregate-note = In brackets — aggregate score
+tournaments-sections-text =
+    <b>{ $league }</b>
+
+    What would you like to see? 👇
+# Knockout ties table: 1 and 2 are the first and second legs, then the aggregate score.
+knockout-col-total = Agg
+knockout-empty = Knockout ties will appear here after the draw.
 standings-empty = The table hasn't been loaded yet. Please try again a bit later.
 
 ## Favourite clubs
@@ -133,3 +149,7 @@ notify-morning-title = ☀️ <b>Your favourite club is playing</b>
 notify-pre-hour = ⏰ <b>One hour to kick-off</b>
 notify-pre-minutes = ⏰ <b>{ $minutes } min to kick-off</b>
 notify-result-title = 🏁 <b>Full time</b>
+notify-first-leg = First leg: { $score }
+notify-aggregate = Aggregate: { $score }
+notify-advances = ➡️ Through to the next round: { $team }
+notify-champion = 🏆 Winner: { $team }

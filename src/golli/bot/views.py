@@ -16,6 +16,7 @@ from golli.competitions import COMPETITIONS
 from golli.i18n import Translator
 from golli.providers.base import MatchStatus
 from golli.services.club_emoji import FALLBACK_EMOJI
+from golli.services.knockout import aggregate_of, stage_of
 from golli.services.schedule import DayMatch
 from golli.services.team_names import TeamNames
 
@@ -60,6 +61,33 @@ def club_label(
     if emoji_id is None:
         return label
     return f'<tg-emoji emoji-id="{emoji_id}">{FALLBACK_EMOJI}</tg-emoji> {label}'
+
+
+def league_groups(matches: list[DayMatch]) -> list[tuple[str, str | None, list[DayMatch]]]:
+    """Bir kunning o'yinlari ligalar bo'yicha: (liga, pley-off bosqichi yoki None, o'yinlar).
+
+    Bitta ligada har xil bosqich o'yinlari bo'lsa (kam uchraydi), har bosqich alohida guruh.
+    """
+    groups: list[tuple[str, str | None, list[DayMatch]]] = []
+    for competition in COMPETITIONS:
+        stages: dict[str | None, list[DayMatch]] = {}
+        for match in matches:
+            if match.competition == competition:
+                stages.setdefault(stage_of(match), []).append(match)
+        groups += [(competition, stage, group) for stage, group in stages.items()]
+    return groups
+
+
+def league_title(competition: str, stage: str | None, t: Translator) -> str:
+    """Liga nomi; pley-off o'yinlarida bosqich nomi bilan: "Chempionlar ligasi · 1/8 final"."""
+    title = t(f"competition-{competition}")
+    return f"{title} · {t(f'stage-{stage}')}" if stage else title
+
+
+def aggregate_text(match: DayMatch) -> str | None:
+    """Javob o'yinidagi ikki o'yin yig'indisi "(3:2)" ko'rinishida; yig'indi bo'lmasa None."""
+    total = aggregate_of(match)
+    return f"({total[0]}:{total[1]})" if total else None
 
 
 def entity_count(text: str) -> int:
@@ -138,15 +166,20 @@ def _row(match: DayMatch, now: datetime, t: Translator, names: TeamNames, tz: tz
         suffix="",
         reserved=0,
     )
+    # Javob o'yinida qator oxirida ikki o'yin yig'indisi turadi.
+    total = aggregate_text(match)
+    if total and match.status not in _STATUS_NOTES:
+        row.suffix, row.reserved = f" {total}", len(total) + 1
     if match.status is MatchStatus.FINISHED:
         if match.home_penalties is not None and match.away_penalties is not None:
             penalties = t("penalties", home=match.home_penalties, away=match.away_penalties)
-            row.suffix = f" ({penalties})"
+            row.suffix += f" ({penalties})"
     elif match.status in _STATUS_NOTES:
         icon, note = _STATUS_NOTES[match.status]
         row.middle, row.suffix = NO_SCORE, f" {icon} {t(note)}"
     elif is_live(match, now):
-        row.suffix, row.reserved = f" {LIVE_MARK}", LIVE_MARK_CHARS
+        row.suffix += f" {LIVE_MARK}"
+        row.reserved += LIVE_MARK_CHARS
     else:
         row.kickoff = match.kickoff_at.astimezone(tz).strftime("%H:%M")
     return row
@@ -196,11 +229,8 @@ def match_groups(
 ) -> list[str]:
     """Bir kunning o'yinlari ligalar bo'yicha; har bir guruh oldida bo'sh qator."""
     lines: list[str] = []
-    for competition in COMPETITIONS:
-        group = [match for match in matches if match.competition == competition]
-        if not group:
-            continue
-        lines += ["", f"<b>{t('competition-' + competition)}</b>"]
+    for competition, stage, group in league_groups(matches):
+        lines += ["", f"<b>{league_title(competition, stage, t)}</b>"]
         lines += _match_lines(group, now, t, names, tz)
     return lines
 
@@ -256,6 +286,8 @@ def render_days(
         notes.append(t("matches-footer"))
     if any(is_live(match, now) for match in all_matches):
         notes.append(t("matches-live-note"))
+    if any(aggregate_of(match) for match in all_matches if match.status not in _STATUS_NOTES):
+        notes.append(t("matches-aggregate-note"))
     if notes:
         lines += ["", *notes]
     return fit_entities("\n".join(lines))

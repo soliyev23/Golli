@@ -13,6 +13,7 @@ from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
+from golli.competitions import TWO_LEGGED_STAGES, knockout_stage
 from golli.db.models import Match, Team
 from golli.providers.base import MatchStatus
 from golli.services.days import day_bounds, local_date
@@ -47,6 +48,12 @@ class DayMatch(BaseModel):
     # Klub logotipi — Telegram maxsus emojisi identifikatori (bo'lmasa None).
     home_emoji: str | None = None
     away_emoji: str | None = None
+    # Provayder bergan tur nomi ("League Stage - 6", "Round of 16", ...).
+    round: str | None = None
+    # Ikki o'yinli pley-off juftligining javob o'yinida — birinchi o'yinda shu o'yinning
+    # uy egasi va mehmoni urgan gollar (o'shanda ular joy almashgan edi). Aks holda None.
+    first_leg_home: int | None = None
+    first_leg_away: int | None = None
 
 
 _matches = TypeAdapter(list[DayMatch])
@@ -63,6 +70,8 @@ async def load_matches(session: AsyncSession, *conditions: ColumnElement[bool]) 
         .where(*conditions)
         .order_by(Match.kickoff_at, Match.id)
     )
+    rows = (await session.execute(query)).all()
+    first_legs = await _first_legs(session, [match for match, *_ in rows])
     return [
         DayMatch(
             id=match.id,
@@ -80,11 +89,53 @@ async def load_matches(session: AsyncSession, *conditions: ColumnElement[bool]) 
             away_penalties=match.away_penalties,
             home_emoji=home_emoji,
             away_emoji=away_emoji,
+            round=match.round,
+            first_leg_home=first_legs.get(match.id, (None, None))[0],
+            first_leg_away=first_legs.get(match.id, (None, None))[1],
         )
-        for match, home_name, away_name, home_emoji, away_emoji in (
-            await session.execute(query)
-        ).all()
+        for match, home_name, away_name, home_emoji, away_emoji in rows
     ]
+
+
+async def _first_legs(session: AsyncSession, matches: list[Match]) -> dict[int, tuple[int, int]]:
+    """Javob o'yinlari uchun birinchi o'yin hisobi: {o'yin ID'si: (uy egasi, mehmon gollari)}.
+
+    Birinchi o'yin — shu turnir, mavsum va bosqichda aynan shu ikki klubning joy almashib
+    o'tkazgan, tugagan avvalgi o'yini. Gollar javob o'yinining uy egasi/mehmoni tartibida.
+    """
+    second_legs = [
+        match
+        for match in matches
+        if knockout_stage(match.competition, match.round) in TWO_LEGGED_STAGES
+    ]
+    if not second_legs:
+        return {}
+    candidates = await session.scalars(
+        select(Match).where(
+            Match.status == MatchStatus.FINISHED.value,
+            Match.round.in_({match.round for match in second_legs}),
+            Match.competition.in_({match.competition for match in second_legs}),
+            Match.season.in_({match.season for match in second_legs}),
+            Match.home_team_id.in_({match.away_team_id for match in second_legs}),
+            Match.away_team_id.in_({match.home_team_id for match in second_legs}),
+        )
+    )
+    played = {
+        (m.competition, m.season, m.round, m.home_team_id, m.away_team_id): m for m in candidates
+    }
+    first_legs: dict[int, tuple[int, int]] = {}
+    for match in second_legs:
+        first = played.get(
+            (match.competition, match.season, match.round, match.away_team_id, match.home_team_id)
+        )
+        if (
+            first is not None
+            and first.kickoff_at < match.kickoff_at
+            and first.home_score is not None
+            and first.away_score is not None
+        ):
+            first_legs[match.id] = (first.away_score, first.home_score)
+    return first_legs
 
 
 def _day_key(day: date) -> str:
