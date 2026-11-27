@@ -46,12 +46,12 @@ async def set_language(
     t = i18n.translator(user.lang)
     if isinstance(callback.message, Message):
         await callback.message.edit_text(t("lang-set"))
-    await bot.send_message(
-        user.id, **welcome(t, callback.from_user.first_name, menu=not first_time)
-    )
     if first_time:
-        # Yangi foydalanuvchi: til tanlangach darhol sevimli klub tanlash taklif qilinadi.
+        # Yangi foydalanuvchi: til tanlangach sevimli klub tanlanadi; salomlashuv esa
+        # u "Tayyor" tugmasini bosgandan keyin chiqadi (handlers/favorites.py).
         await open_favorites(state, FROM_START)
         await bot.send_message(user.id, **favorites_onboarding(t))
+    else:
+        await bot.send_message(user.id, **welcome(t, callback.from_user.first_name))
     # "/" menyusidagi buyruqlar tavsifi ham shu foydalanuvchi uchun tanlangan tilga o'tadi.
     await bot.set_my_commands(bot_commands(t), scope=BotCommandScopeChat(chat_id=user.id))

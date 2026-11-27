@@ -100,6 +100,10 @@ tournaments-text =
 # Заголовки столбцов таблицы: моноширинный шрифт, поэтому короткие (не длиннее 2 знаков).
 standings-col-club = Клуб
 standings-col-played = И
+standings-col-wins = В
+standings-col-draws = Н
+standings-col-losses = П
+standings-col-goals = М
 standings-col-points = О
 standings-updated = 🕐 Обновлено: { $time }
 standings-empty = Таблица пока не загружена. Попробуйте чуть позже.
@@ -114,15 +118,13 @@ favorites-pick = Нажмите на клуб, чтобы выбрать. Пов
 favorites-added = ✅ Добавлено: { $team }
 favorites-removed = ❌ Убрано: { $team }
 favorites-no-teams = Клубы этой лиги пока не загружены.
-favorites-saved = ⭐ <b>Ваши любимые клубы:</b>
-favorites-saved-note = Буду напоминать об их матчах.
-favorites-none-saved = Клуб не выбран. В любой момент это можно сделать через ⚙️ Настройки → ⭐ Любимые клубы.
+favorites-done = ✅ Готово
 favorites-onboarding =
     ⭐ <b>Выберите любимый клуб</b>
 
     Я буду напоминать о его матчах: утром в день матча, за час до начала и после окончания.
 
-    Сначала выберите лигу 👇
+    Выберите лигу, отметьте клубы и в конце нажмите «✅ Готово» 👇
     Позже это можно изменить в ⚙️ Настройках.
 
 ## Напоминания

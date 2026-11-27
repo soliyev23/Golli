@@ -68,15 +68,22 @@ async def test_choosing_a_league_shows_its_table(chat, epl_table, i18n):
     assert isinstance(sent, SendRichMessage)
     assert rich_lines(sent.rich_message) == [
         f"### {league(i18n, 'epl')}",
-        "# | Klub | O' | +/- | O",
-        "1 | <5001> Arsenal | 10 | +14 | 25",
-        "2 | ⚽ Man Siti | 10 | +11 | 22",
-        "3 | ⚽ Everton | 10 | -7 | 9",
+        "# | Klub | O' | G' | D | M | T | +/- | O",
+        "1 | <5001> Arsenal | 10 | 8 | 1 | 1 | 18:4 | +14 | 25",
+        "2 | ⚽ Man Siti | 10 | 7 | 1 | 2 | 20:9 | +11 | 22",
+        "3 | ⚽ Everton | 10 | 3 | 0 | 7 | 8:15 | -7 | 9",
         "🕐 Yangilangan: 28-noyabr, 10:00",
     ]
     table = sent.rich_message.blocks[1]
-    assert [cell.is_header for cell in table.cells[0]] == [True] * 5
-    assert [cell.align for cell in table.cells[1]] == ["right", "left", "right", "right", "right"]
+    assert [cell.is_header for cell in table.cells[0]] == [True] * 9
+    assert [cell.align for cell in table.cells[1]] == [
+        "right",
+        "left",
+        *["right"] * 4,
+        "center",
+        "right",
+        "right",
+    ]
     # Ligalar klaviaturasi joyida qoladi: boshqa turnirga o'tish mumkin.
     assert keyboard_rows(sent)[-1] == [BACK]
 
@@ -113,7 +120,7 @@ async def test_back_returns_to_main_menu(chat):
 async def test_league_button_means_table_here_and_clubs_in_favourites(chat, epl_table, i18n):
     await chat.send(MENU_BUTTON)
     [table] = await chat.send(league(i18n, "epl"))
-    assert "1 | <5001> Arsenal | 10 | +14 | 25" in rich_lines(table.rich_message)
+    assert "1 | <5001> Arsenal | 10 | 8 | 1 | 1 | 18:4 | +14 | 25" in rich_lines(table.rich_message)
 
     await chat.send(BACK)
     await chat.send("⭐ Sevimli klublar")
@@ -139,8 +146,8 @@ async def test_other_text_in_the_section_asks_to_choose(chat, i18n):
 @pytest.mark.parametrize(
     ("code", "header", "updated"),
     [
-        ("ru", "# | Клуб | И | +/- | О", "🕐 Обновлено: 28 ноября, 10:00"),
-        ("en", "# | Club | P | +/- | Pt", "🕐 Updated: 28 November, 10:00"),
+        ("ru", "# | Клуб | И | В | Н | П | М | +/- | О", "🕐 Обновлено: 28 ноября, 10:00"),
+        ("en", "# | Club | P | W | D | L | G | +/- | Pt", "🕐 Updated: 28 November, 10:00"),
     ],
 )
 async def test_table_in_other_languages(make_chat, epl_table, i18n, code, header, updated):

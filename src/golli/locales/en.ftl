@@ -100,6 +100,10 @@ tournaments-text =
 # Table column headings: monospace font, so they are short (2 characters at most).
 standings-col-club = Club
 standings-col-played = P
+standings-col-wins = W
+standings-col-draws = D
+standings-col-losses = L
+standings-col-goals = G
 standings-col-points = Pt
 standings-updated = 🕐 Updated: { $time }
 standings-empty = The table hasn't been loaded yet. Please try again a bit later.
@@ -114,15 +118,13 @@ favorites-pick = Tap a club to pick it. Tap again to remove it.
 favorites-added = ✅ Added: { $team }
 favorites-removed = ❌ Removed: { $team }
 favorites-no-teams = This league's clubs haven't been loaded yet.
-favorites-saved = ⭐ <b>Your favourite clubs:</b>
-favorites-saved-note = I'll remind you about their matches.
-favorites-none-saved = No club picked. You can do it any time via ⚙️ Settings → ⭐ Favourite clubs.
+favorites-done = ✅ Done
 favorites-onboarding =
     ⭐ <b>Pick your favourite club</b>
 
     I'll remind you about its matches: on the morning of match day, one hour before kick-off and after the final whistle.
 
-    Choose a league first 👇
+    Choose a league, mark your clubs, then tap “✅ Done” 👇
     You can change this later in ⚙️ Settings.
 
 ## Reminders

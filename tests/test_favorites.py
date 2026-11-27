@@ -263,29 +263,13 @@ async def test_back_goes_one_step_at_a_time_to_settings_and_main_menu(chat, club
     assert keyboard_rows(main) == MAIN_MENU_ROWS
 
 
-async def test_back_after_first_start_shows_the_choice_and_opens_main_menu(make_chat, clubs, i18n):
-    chat = make_chat()
-    await chat.choose_language("uz")  # yangi foydalanuvchi: klub tanlash taklif qilingan
+async def test_settings_section_has_no_done_button(chat, clubs, i18n):
+    # "Tayyor" faqat birinchi tanishuvda bo'ladi; Sozlamalardan kirilganda — faqat "Orqaga".
+    [leagues] = await chat.send(ROOT_BUTTON)
+    assert keyboard_rows(leagues)[-1] == [BACK]
 
-    await open_league(chat, i18n, from_menu=False)
-    await chat.send("Arsenal")
-    await chat.send(BACK)
-    [summary] = await chat.send(BACK)
-
-    assert summary.text == (
-        "⭐ <b>Sevimli klublaringiz:</b>\n• Arsenal\n\nUlarning o'yinlari haqida eslatib turaman."
-    )
-    assert keyboard_rows(summary) == MAIN_MENU_ROWS
-
-
-async def test_skipping_the_choice_after_first_start(make_chat, i18n):
-    chat = make_chat()
-    await chat.choose_language("uz")
-
-    [summary] = await chat.send(BACK)
-
-    assert summary.text.startswith("Klub tanlanmadi.")
-    assert keyboard_rows(summary) == MAIN_MENU_ROWS
+    sent = await open_league(chat, i18n, from_menu=False)
+    assert keyboard_rows(sent)[-1] == [BACK]
 
 
 async def test_favorites_belong_to_each_user_separately(make_chat, db, clubs, i18n):

@@ -340,9 +340,9 @@ async def chat(make_chat: Callable[..., PrivateChat]) -> PrivateChat:
     """O'zbek tilini tanlab, asosiy menyuga chiqqan foydalanuvchi.
 
     Yangi foydalanuvchi uchun make_chat() kerak: til tanlangach unga sevimli klub tanlash
-    taklif qilinadi; bu yerda o'sha taklif "Orqaga" bilan o'tkazib yuborilgan.
+    taklif qilinadi; bu yerda o'sha taklif klub tanlamasdan "Tayyor" bilan yakunlangan.
     """
     chat = make_chat()
     await chat.choose_language("uz")
-    await chat.send("⬅️ Orqaga")
+    await chat.send("✅ Tayyor")
     return chat

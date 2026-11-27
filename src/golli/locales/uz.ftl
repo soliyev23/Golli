@@ -100,6 +100,10 @@ tournaments-text =
 # Jadval ustunlari sarlavhalari: teng enli shriftda, shuning uchun qisqa (ko'pi bilan 2 belgi).
 standings-col-club = Klub
 standings-col-played = O'
+standings-col-wins = G'
+standings-col-draws = D
+standings-col-losses = M
+standings-col-goals = T
 standings-col-points = O
 standings-updated = 🕐 Yangilangan: { $time }
 standings-empty = Jadval hali yuklanmagan. Birozdan keyin urinib ko'ring.
@@ -114,15 +118,13 @@ favorites-pick = Klubni bosib tanlang. Qayta bossangiz, olib tashlanadi.
 favorites-added = ✅ Qo'shildi: { $team }
 favorites-removed = ❌ Olib tashlandi: { $team }
 favorites-no-teams = Bu liga klublari hali yuklanmagan.
-favorites-saved = ⭐ <b>Sevimli klublaringiz:</b>
-favorites-saved-note = Ularning o'yinlari haqida eslatib turaman.
-favorites-none-saved = Klub tanlanmadi. Istalgan payt ⚙️ Sozlamalar → ⭐ Sevimli klublar orqali tanlashingiz mumkin.
+favorites-done = ✅ Tayyor
 favorites-onboarding =
     ⭐ <b>Sevimli klubingizni tanlang</b>
 
     Uning o'yinlari haqida eslatib turaman: o'yin kuni ertalab, boshlanishiga 1 soat qolganda va o'yin tugagach.
 
-    Avval ligani tanlang 👇
+    Ligani tanlang, klublarni belgilang va oxirida «✅ Tayyor» tugmasini bosing 👇
     Keyinroq ⚙️ Sozlamalar orqali o'zgartirishingiz mumkin.
 
 ## Eslatmalar

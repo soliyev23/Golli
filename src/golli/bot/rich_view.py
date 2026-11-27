@@ -184,11 +184,20 @@ def standings_message(
     names: TeamNames,
     tz: tzinfo,
 ) -> InputRichMessage:
-    """Turnir jadvali: o'rin, klub, o'yinlar, to'plar farqi, ochko."""
+    """Turnir jadvali: o'rin, klub, o'yinlar, g'alaba, durang, mag'lubiyat, to'plar, farq, ochko.
+
+    Ustunlar ataylab to'liq: tor jadval telefonda xabar enining bir qisminigina egallaydi
+    (Telegram xabar enini ichidagi eng keng narsaga qarab belgilaydi — foydalanuvchi bilan
+    sinab ko'rilgan), to'liq jadval esa ekran eniga yoyiladi.
+    """
     header = [
         _cell("#", "right", header=True),
         _cell(t("standings-col-club"), header=True),
         _cell(t("standings-col-played"), "right", header=True),
+        _cell(t("standings-col-wins"), "right", header=True),
+        _cell(t("standings-col-draws"), "right", header=True),
+        _cell(t("standings-col-losses"), "right", header=True),
+        _cell(t("standings-col-goals"), "center", header=True),
         _cell(DIFFERENCE_LABEL, "right", header=True),
         _cell(t("standings-col-points"), "right", header=True),
     ]
@@ -216,6 +225,10 @@ def standings_message(
                 _cell(str(row.position), "right"),
                 _cell(_club(names.short(row.team, t.locale), row.team_emoji)),
                 _cell(str(row.played), "right"),
+                _cell(str(row.wins), "right"),
+                _cell(str(row.draws), "right"),
+                _cell(str(row.losses), "right"),
+                _cell(f"{row.goals_for}:{row.goals_against}", "center"),
                 _cell(difference, "right"),
                 _cell(RichTextBold(text=str(row.points)), "right"),
             ]

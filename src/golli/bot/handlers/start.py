@@ -20,12 +20,11 @@ async def cmd_start(
     message: Message, user: User, session: AsyncSession, t: Translator, state: FSMContext
 ) -> None:
     await state.clear()
-    first_name = message.from_user.first_name
     if await favorite_teams(session, user.id):
-        await message.answer(**welcome(t, first_name))
+        await message.answer(**welcome(t, message.from_user.first_name))
         return
-    # Sevimli klubi yo'q foydalanuvchi: salomlashuvdan keyin darhol klub tanlash taklif qilinadi.
-    await message.answer(**welcome(t, first_name, menu=False))
+    # Sevimli klubi yo'q foydalanuvchi: avval klub tanlash taklif qilinadi; salomlashuv
+    # "Tayyor" tugmasi bosilgach chiqadi.
     await open_favorites(state, FROM_START)
     await message.answer(**favorites_onboarding(t))
 

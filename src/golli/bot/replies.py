@@ -14,19 +14,16 @@ from golli.i18n import I18n, Translator
 logger = logging.getLogger(__name__)
 
 
-def welcome(t: Translator, first_name: str, *, menu: bool = True) -> dict[str, Any]:
-    """Salomlashuv. `menu=False` — ortidan boshqa klaviaturali xabar yuboriladigan holat uchun."""
+def welcome(t: Translator, first_name: str) -> dict[str, Any]:
+    """Salomlashuv va asosiy menyu."""
     # Ism HTML sifatida yuboriladi, shuning uchun undagi < > & belgilar ekranlanadi.
     name = escape(first_name, quote=False)
-    reply: dict[str, Any] = {"text": t("start-welcome", name=name)}
-    if menu:
-        reply["reply_markup"] = main_menu(t)
-    return reply
+    return {"text": t("start-welcome", name=name), "reply_markup": main_menu(t)}
 
 
 def favorites_onboarding(t: Translator) -> dict[str, Any]:
-    """Yangi foydalanuvchiga sevimli klub tanlash taklifi: ligalar klaviaturasi bilan."""
-    return {"text": t("favorites-onboarding"), "reply_markup": leagues_menu(t)}
+    """Yangi foydalanuvchiga sevimli klub tanlash taklifi: ligalar va "Tayyor" tugmasi bilan."""
+    return {"text": t("favorites-onboarding"), "reply_markup": leagues_menu(t, done=True)}
 
 
 def language_prompt(i18n: I18n) -> dict[str, Any]:

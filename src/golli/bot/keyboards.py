@@ -29,12 +29,16 @@ def main_menu(t: Translator) -> ReplyKeyboardMarkup:
     )
 
 
-def leagues_menu(t: Translator) -> ReplyKeyboardMarkup:
-    """Ligalar ro'yxati va "Orqaga". Sevimli klublar va turnirlar bo'limlarida ishlatiladi."""
+def leagues_menu(t: Translator, *, done: bool = False) -> ReplyKeyboardMarkup:
+    """Ligalar ro'yxati va "Orqaga". Sevimli klublar va turnirlar bo'limlarida ishlatiladi.
+
+    `done` — birinchi tanishuvdagi klub tanlash: "Orqaga" o'rnida "Tayyor" turadi.
+    """
     first, *others = [KeyboardButton(text=t(f"competition-{code}")) for code in COMPETITIONS]
+    last = KeyboardButton(text=t("favorites-done" if done else "menu-back"))
     return ReplyKeyboardMarkup(
         # Birinchi liga nomi uzun ("Chempionlar ligasi"), shuning uchun u alohida qatorda.
-        keyboard=[[first], others, [KeyboardButton(text=t("menu-back"))]],
+        keyboard=[[first], others, [last]],
         resize_keyboard=True,
     )
 

@@ -32,14 +32,6 @@ def root_text(favorites: list[Team], t: Translator, names: TeamNames) -> str:
     return "\n".join(lines)
 
 
-def summary_text(favorites: list[Team], t: Translator, names: TeamNames) -> str:
-    """Birinchi tanishuvdagi klub tanlash tugagach ko'rsatiladigan yakun."""
-    if not favorites:
-        return t("favorites-none-saved")
-    lines = [t("favorites-saved"), *_club_lines(favorites, t, names)]
-    return "\n".join([*lines, "", t("favorites-saved-note")])
-
-
 def _keyboard(rows: list[list[KeyboardButton]]) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
@@ -59,9 +51,12 @@ def clubs_text(competition: str, has_teams: bool, t: Translator) -> str:
 
 
 def clubs_keyboard(
-    teams: list[Team], selected: set[int], t: Translator, names: TeamNames
+    teams: list[Team], selected: set[int], t: Translator, names: TeamNames, *, done: bool = False
 ) -> ReplyKeyboardMarkup:
-    """Liganing barcha klublari (ro'yxat uzun bo'lsa, klaviatura aylantiriladi)."""
+    """Liganing barcha klublari (ro'yxat uzun bo'lsa, klaviatura aylantiriladi).
+
+    `done` — birinchi tanishuvdagi klub tanlash: "Orqaga" yonida "Tayyor" ham turadi.
+    """
     clubs = [
         KeyboardButton(
             text=(SELECTED_MARK if team.id in selected else "") + names.get(team.name, t.locale),
@@ -70,7 +65,10 @@ def clubs_keyboard(
         )
         for team in teams
     ]
-    return _keyboard([*_in_rows(clubs), [KeyboardButton(text=t("menu-back"))]])
+    last = [KeyboardButton(text=t("menu-back"))]
+    if done:
+        last.append(KeyboardButton(text=t("favorites-done")))
+    return _keyboard([*_in_rows(clubs), last])
 
 
 def find_club(text: str, teams: list[Team], t: Translator, names: TeamNames) -> Team | None:

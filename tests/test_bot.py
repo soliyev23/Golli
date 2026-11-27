@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from factories import match, rich_lines, text_of
 from golli.bot import rich_view
 from golli.bot.handlers.matches import recent_days, upcoming_days
+from golli.db.favorites import favorite_teams
 from golli.db.matches import upsert_matches
 from golli.db.models import User
 from golli.providers.base import MatchStatus
@@ -74,7 +75,7 @@ async def test_any_message_before_choice_asks_language(make_chat, i18n):
 
 
 @pytest.mark.parametrize("code", ["uz", "ru", "en"])
-async def test_choosing_language_saves_it_and_welcomes(make_chat, db, i18n, code):
+async def test_choosing_language_saves_it_and_offers_to_pick_a_club(make_chat, db, i18n, code):
     chat = make_chat()
     await chat.send("/start")
 
@@ -82,17 +83,16 @@ async def test_choosing_language_saves_it_and_welcomes(make_chat, db, i18n, code
 
     t = i18n.translator(code)
     assert (await get_user(db, chat.user_id)).lang == code
-    # Yangi foydalanuvchi: salomlashuvdan keyin darhol sevimli klub tanlash taklif qilinadi.
-    assert texts(sent) == [t("start-welcome", name="Ali"), t("favorites-onboarding")]
-    assert sent[0].reply_markup is None
-    assert menu_buttons(sent[1]) == [
+    # Yangi foydalanuvchi: tildan keyin sevimli klub tanlanadi; salomlashuv hali chiqmaydi.
+    assert texts(sent) == [t("favorites-onboarding")]
+    assert menu_buttons(sent[0]) == [
         t("competition-ucl"),
         t("competition-epl"),
         t("competition-laliga"),
-        t("menu-back"),
+        t("favorites-done"),
     ]
 
-    answer, edit, _, _, commands = chat.requests
+    answer, edit, _, commands = chat.requests
     assert isinstance(answer, AnswerCallbackQuery)
     assert isinstance(edit, EditMessageText) and edit.text == t("lang-set")
     assert isinstance(commands, SetMyCommands) and commands.scope.chat_id == chat.user_id
@@ -110,8 +110,8 @@ async def test_start_without_favorites_offers_to_pick_a_club(make_chat, i18n):
     sent = await chat.send("/start")
 
     t = i18n.translator("ru")
-    assert texts(sent) == [t("start-welcome", name="Ali"), t("favorites-onboarding")]
-    assert menu_buttons(sent[1])[-1] == t("menu-back")
+    assert texts(sent) == [t("favorites-onboarding")]
+    assert menu_buttons(sent[0])[-1] == t("favorites-done")
 
 
 async def test_start_with_favorites_goes_straight_to_main_menu(chat, db, i18n):
@@ -133,14 +133,45 @@ async def test_new_user_picks_a_club_right_after_choosing_language(make_chat, db
     await chat.choose_language("uz")
 
     [clubs] = await chat.send(i18n.translate("uz", "competition-epl"))
-    assert "Arsenal" in menu_buttons(clubs)
+    # Klublar ro'yxatida "Orqaga" (ligalarga) va "Tayyor" (tugatish) tugmalari bor.
+    assert menu_buttons(clubs)[-2:] == ["⬅️ Orqaga", "✅ Tayyor"]
     [added] = await chat.send("Arsenal")
     assert added.text == "✅ Qo'shildi: Arsenal"
-    await chat.send("⬅️ Orqaga")
-    [summary] = await chat.send("⬅️ Orqaga")
+    assert menu_buttons(added)[-1] == "✅ Tayyor"
 
-    assert "• Arsenal" in summary.text
-    assert menu_buttons(summary) == MAIN_MENU
+    # "Tayyor" bosilgach salomlashuv va asosiy menyu chiqadi.
+    [greeting] = await chat.send("✅ Tayyor")
+    assert greeting.text == i18n.translate("uz", "start-welcome", name="Ali")
+    assert greeting.text.startswith("Assalomu alaykum, Ali!")
+    assert menu_buttons(greeting) == MAIN_MENU
+    async with db() as session:
+        assert [team.name for team in await favorite_teams(session, chat.user_id)] == ["Arsenal"]
+
+
+async def test_new_user_may_finish_without_picking_a_club(make_chat, i18n):
+    chat = make_chat()
+    await chat.choose_language("uz")
+
+    [greeting] = await chat.send("✅ Tayyor")
+
+    assert greeting.text.startswith("Assalomu alaykum, Ali!")
+    assert menu_buttons(greeting) == MAIN_MENU
+    # Tanishuv tugadi: endi sevimli klublar faqat Sozlamalar orqali ochiladi.
+    [unknown] = await chat.send(i18n.translate("uz", "competition-epl"))
+    assert unknown.text == i18n.translate("uz", "unknown-message")
+
+
+async def test_back_from_clubs_during_first_start_returns_to_leagues(make_chat, db, i18n):
+    await store(db, match("m1", datetime(2026, 11, 28, 15, 0, tzinfo=ZoneInfo("UTC"))))
+    chat = make_chat()
+    await chat.choose_language("uz")
+    await chat.send(i18n.translate("uz", "competition-epl"))
+    await chat.send("Arsenal")
+
+    [leagues] = await chat.send("⬅️ Orqaga")
+
+    assert "• Arsenal" in leagues.text
+    assert menu_buttons(leagues)[-1] == "✅ Tayyor"
 
 
 async def test_changing_language_later_does_not_restart_club_picking(chat, i18n):
@@ -188,7 +219,7 @@ async def test_name_is_html_escaped(make_chat):
     chat = make_chat(first_name="<b>Ali</b> & Vali")
     await chat.choose_language("uz")
 
-    sent = await chat.send("/start")
+    sent = await chat.send("✅ Tayyor")
 
     assert "&lt;b&gt;Ali&lt;/b&gt; &amp; Vali" in sent[0].text
     assert "<b>Ali</b>" not in sent[0].text
