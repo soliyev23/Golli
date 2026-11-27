@@ -1,8 +1,9 @@
 """Sevimli klublar bo'limining matnlari va pastki (reply) klaviaturalari.
 
-Bo'lim ikki bosqichli: avval liga tanlanadi, keyin shu liganing klublari. Tugmalar pastki
-klaviaturada turadi, shuning uchun bosilgan tugma oddiy matnli xabar bo'lib keladi va
-find_club uni klub nomiga qarab topadi.
+Bo'lim ikki bosqichli: avval liga tanlanadi, keyin shu liganing klublari; har bosqichda
+bir qadam ortga qaytaradigan "Orqaga" tugmasi bor. Tugmalar pastki klaviaturada turadi,
+shuning uchun bosilgan tugma oddiy matnli xabar bo'lib keladi va find_club uni klub nomiga
+qarab topadi.
 """
 
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
@@ -33,7 +34,7 @@ def root_text(favorites: list[Team], t: Translator, names: TeamNames) -> str:
 
 
 def summary_text(favorites: list[Team], t: Translator, names: TeamNames) -> str:
-    """Tanlash tugagach ko'rsatiladigan yakun."""
+    """Birinchi tanishuvdagi klub tanlash tugagach ko'rsatiladigan yakun."""
     if not favorites:
         return t("favorites-none-saved")
     lines = [t("favorites-saved"), *_club_lines(favorites, t, names)]
@@ -55,7 +56,7 @@ def leagues_keyboard(t: Translator) -> ReplyKeyboardMarkup:
         [
             leagues[:1],
             *_in_rows(leagues[1:]),
-            [KeyboardButton(text=t("favorites-done"))],
+            [KeyboardButton(text=t("menu-back"))],
         ]
     )
 
@@ -82,15 +83,7 @@ def clubs_keyboard(
         )
         for team in teams
     ]
-    return _keyboard(
-        [
-            *_in_rows(clubs),
-            [
-                KeyboardButton(text=t("favorites-back")),
-                KeyboardButton(text=t("favorites-done")),
-            ],
-        ]
-    )
+    return _keyboard([*_in_rows(clubs), [KeyboardButton(text=t("menu-back"))]])
 
 
 def find_club(text: str, teams: list[Team], t: Translator, names: TeamNames) -> Team | None:

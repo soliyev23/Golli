@@ -2,15 +2,16 @@ from typing import Any
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from golli.bot import favorites_view as view
 from golli.bot.callbacks import FavoriteListCallback, FavoritesCallback, FavoriteToggleCallback
 from golli.bot.filters import LeagueButton, MenuButton
-from golli.bot.keyboards import main_menu
+from golli.bot.keyboards import main_menu, settings_menu
+from golli.bot.states import FROM_SETTINGS, FROM_START, FavoritesFlow, open_favorites
 from golli.bot.views import club_label
 from golli.competitions import COMPETITIONS
 from golli.db.favorites import competition_teams, favorite_teams, toggle_favorite
@@ -19,12 +20,6 @@ from golli.i18n import Translator
 from golli.services.team_names import TeamNames
 
 router = Router(name="favorites")
-
-
-class FavoritesFlow(StatesGroup):
-    # Foydalanuvchi bitta liganing klublari ro'yxatida turibdi: bosgan tugmasining matni
-    # klub nomi deb o'qiladi. Qaysi liga ekani holat ma'lumotida ("competition") saqlanadi.
-    clubs = State()
 
 
 async def _leagues(
@@ -52,7 +47,6 @@ async def _clubs(
 
 
 @router.message(MenuButton("menu-favorites"))
-@router.message(MenuButton("favorites-back"))
 async def show_leagues(
     message: Message,
     user: User,
@@ -61,7 +55,7 @@ async def show_leagues(
     names: TeamNames,
     state: FSMContext,
 ) -> None:
-    await state.clear()
+    await open_favorites(state, FROM_SETTINGS)
     await message.answer(**await _leagues(session, user, t, names))
 
 
@@ -80,8 +74,10 @@ async def show_clubs(
     await message.answer(**await _clubs(session, user, competition, t, names))
 
 
-@router.message(MenuButton("favorites-done"))
-async def finish(
+# "Orqaga" har bosqichda bir qadam ortga qaytaradi: klublardan ligalarga, ligalardan esa
+# bo'limga kirilgan joyga.
+@router.message(FavoritesFlow.clubs, MenuButton("menu-back"))
+async def back_to_leagues(
     message: Message,
     user: User,
     session: AsyncSession,
@@ -89,13 +85,31 @@ async def finish(
     names: TeamNames,
     state: FSMContext,
 ) -> None:
+    await state.set_state(FavoritesFlow.leagues)
+    await message.answer(**await _leagues(session, user, t, names))
+
+
+@router.message(FavoritesFlow.leagues, MenuButton("menu-back"))
+async def leave(
+    message: Message,
+    user: User,
+    session: AsyncSession,
+    t: Translator,
+    names: TeamNames,
+    state: FSMContext,
+) -> None:
+    origin = (await state.get_data()).get("origin", FROM_SETTINGS)
     await state.clear()
-    favorites = await favorite_teams(session, user.id)
-    await message.answer(view.summary_text(favorites, t, names), reply_markup=main_menu(t))
+    if origin == FROM_START:
+        # Birinchi tanishuv: tanlov yakuni ko'rsatiladi va asosiy menyu ochiladi.
+        favorites = await favorite_teams(session, user.id)
+        await message.answer(view.summary_text(favorites, t, names), reply_markup=main_menu(t))
+    else:
+        await message.answer(t("settings-text"), reply_markup=settings_menu(t))
 
 
-# Klublar ro'yxatida turgan foydalanuvchining boshqa har qanday matni — klub tugmasi.
-@router.message(FavoritesFlow.clubs, F.text)
+# Bo'lim ichidagi boshqa har qanday matn: klublar ro'yxatida — klub tugmasi.
+@router.message(StateFilter(FavoritesFlow), F.text)
 async def toggle_club(
     message: Message,
     user: User,
@@ -105,9 +119,11 @@ async def toggle_club(
     state: FSMContext,
 ) -> None:
     competition = (await state.get_data()).get("competition")
-    if competition not in COMPETITIONS:
-        await state.clear()
-        await message.answer(**await _leagues(session, user, t, names))
+    in_club_list = await state.get_state() == FavoritesFlow.clubs.state
+    if not in_club_list or competition not in COMPETITIONS:
+        await state.set_state(FavoritesFlow.leagues)
+        hint = t("favorites-choose-hint")
+        await message.answer(hint, reply_markup=view.leagues_keyboard(t))
         return
 
     teams = view.sort_teams(await competition_teams(session, competition), t, names)

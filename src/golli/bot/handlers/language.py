@@ -8,6 +8,7 @@ from golli.bot.callbacks import LangCallback
 from golli.bot.commands import bot_commands
 from golli.bot.filters import MenuButton
 from golli.bot.replies import favorites_onboarding, language_prompt, welcome
+from golli.bot.states import FROM_START, open_favorites
 from golli.db.models import User
 from golli.i18n import I18n
 
@@ -31,6 +32,7 @@ async def set_language(
     session: AsyncSession,
     i18n: I18n,
     bot: Bot,
+    state: FSMContext,
 ) -> None:
     await callback.answer()
     if callback_data.code not in i18n.locales:
@@ -49,6 +51,7 @@ async def set_language(
     )
     if first_time:
         # Yangi foydalanuvchi: til tanlangach darhol sevimli klub tanlash taklif qilinadi.
+        await open_favorites(state, FROM_START)
         await bot.send_message(user.id, **favorites_onboarding(t))
     # "/" menyusidagi buyruqlar tavsifi ham shu foydalanuvchi uchun tanlangan tilga o'tadi.
     await bot.set_my_commands(bot_commands(t), scope=BotCommandScopeChat(chat_id=user.id))

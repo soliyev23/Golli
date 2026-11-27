@@ -81,7 +81,7 @@ async def test_choosing_language_saves_it_and_welcomes(make_chat, db, i18n, code
         t("competition-ucl"),
         t("competition-epl"),
         t("competition-laliga"),
-        t("favorites-done"),
+        t("menu-back"),
     ]
 
     answer, edit, _, _, commands = chat.requests
@@ -103,7 +103,7 @@ async def test_start_without_favorites_offers_to_pick_a_club(make_chat, i18n):
 
     t = i18n.translator("ru")
     assert texts(sent) == [t("start-welcome", name="Ali"), t("favorites-onboarding")]
-    assert menu_buttons(sent[1])[-1] == t("favorites-done")
+    assert menu_buttons(sent[1])[-1] == t("menu-back")
 
 
 async def test_start_with_favorites_goes_straight_to_main_menu(chat, db, i18n):
@@ -127,7 +127,8 @@ async def test_new_user_picks_a_club_right_after_choosing_language(make_chat, db
     assert "Arsenal" in menu_buttons(clubs)
     [added] = await chat.send("Arsenal")
     assert added.text == "✅ Qo'shildi: Arsenal"
-    [summary] = await chat.send("✅ Tayyor")
+    await chat.send("⬅️ Orqaga")
+    [summary] = await chat.send("⬅️ Orqaga")
 
     assert "• Arsenal" in summary.text
     assert menu_buttons(summary) == MAIN_MENU

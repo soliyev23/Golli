@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from golli.bot.keyboards import main_menu
 from golli.bot.replies import favorites_onboarding, welcome
+from golli.bot.states import FROM_START, open_favorites
 from golli.db.favorites import favorite_teams
 from golli.db.models import User
 from golli.i18n import Translator
@@ -25,6 +26,7 @@ async def cmd_start(
         return
     # Sevimli klubi yo'q foydalanuvchi: salomlashuvdan keyin darhol klub tanlash taklif qilinadi.
     await message.answer(**welcome(t, first_name, menu=False))
+    await open_favorites(state, FROM_START)
     await message.answer(**favorites_onboarding(t))
 
 

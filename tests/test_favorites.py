@@ -138,8 +138,7 @@ async def test_toggle_unknown_team(db):
 # --- Bot: pastki klaviatura
 
 
-def done(i18n, locale: str = "uz") -> str:
-    return i18n.translate(locale, "favorites-done")
+BACK = "⬅️ Orqaga"
 
 
 async def open_league(chat, i18n, competition: str = "epl", locale: str = "uz"):
@@ -160,7 +159,7 @@ async def test_empty_state_offers_leagues(chat, i18n):
     assert keyboard_rows(sent) == [
         [t("competition-ucl")],
         [t("competition-epl"), t("competition-laliga")],
-        ["✅ Tayyor"],
+        [BACK],
     ]
 
 
@@ -174,7 +173,7 @@ async def test_league_shows_its_clubs_sorted_in_user_language(chat, clubs, i18n)
     assert keyboard_rows(sent) == [
         ["Arsenal", "Everton"],
         ["Liverpul", "Manchester Siti"],
-        ["⬅️ Ligalar", "✅ Tayyor"],
+        [BACK],
     ]
 
 
@@ -187,7 +186,7 @@ async def test_club_names_follow_language(make_chat, clubs, i18n):
     assert keyboard_rows(sent) == [
         ["Арсенал", "Ливерпуль"],
         ["Манчестер Сити", "Эвертон"],
-        ["⬅️ Лиги", "✅ Готово"],
+        ["⬅️ Назад"],
     ]
 
 
@@ -226,31 +225,58 @@ async def test_club_logos_are_shown_on_buttons_and_in_replies(chat, db, clubs, i
 
 
 async def test_several_clubs_from_different_leagues(chat, db, clubs, i18n):
+    await chat.send(ROOT_BUTTON)
     await open_league(chat, i18n)
     await chat.send("Arsenal")
     await chat.send("Liverpul")
-    [leagues] = await chat.send("⬅️ Ligalar")
+    # "Orqaga" klublardan ligalar ro'yxatiga qaytaradi.
+    [leagues] = await chat.send(BACK)
     assert "• Arsenal\n• Liverpul" in leagues.text
+    assert keyboard_rows(leagues)[0] == [i18n.translate("uz", "competition-ucl")]
 
     await open_league(chat, i18n, "laliga")
     await chat.send("Barselona")
 
     assert await favorite_names(db, chat.user_id) == ["Arsenal", "Liverpool", "Barcelona"]
 
-    [summary] = await chat.send(done(i18n))
+
+async def test_back_goes_one_step_at_a_time_to_settings_and_main_menu(chat, clubs, i18n):
+    await chat.send("⚙️ Sozlamalar")
+    await chat.send(ROOT_BUTTON)
+    await open_league(chat, i18n)
+
+    [leagues] = await chat.send(BACK)
+    assert leagues.text.startswith("⭐ <b>Sevimli klublar</b>")
+
+    [settings] = await chat.send(BACK)
+    assert settings.text.startswith("⚙️ <b>Sozlamalar</b>")
+    assert keyboard_rows(settings) == [["⭐ Sevimli klublar", "🌐 Til"], [BACK]]
+
+    [main] = await chat.send(BACK)
+    assert main.text == "🏠 Asosiy menyu"
+    assert keyboard_rows(main) == [["⚽ Yaqin o'yinlar", "🏁 Oxirgi o'yinlar"], ["⚙️ Sozlamalar"]]
+
+
+async def test_back_after_first_start_shows_the_choice_and_opens_main_menu(make_chat, clubs, i18n):
+    chat = make_chat()
+    await chat.choose_language("uz")  # yangi foydalanuvchi: klub tanlash taklif qilingan
+
+    await open_league(chat, i18n)
+    await chat.send("Arsenal")
+    await chat.send(BACK)
+    [summary] = await chat.send(BACK)
+
     assert summary.text == (
-        "⭐ <b>Sevimli klublaringiz:</b>\n"
-        "• Arsenal\n• Liverpul\n• Barselona\n\n"
-        "Ularning o'yinlari haqida eslatib turaman."
+        "⭐ <b>Sevimli klublaringiz:</b>\n• Arsenal\n\nUlarning o'yinlari haqida eslatib turaman."
     )
-    # "Tayyor" asosiy menyuga qaytaradi.
     assert keyboard_rows(summary) == [["⚽ Yaqin o'yinlar", "🏁 Oxirgi o'yinlar"], ["⚙️ Sozlamalar"]]
 
 
-async def test_done_without_clubs_tells_where_to_pick_them_later(chat, i18n):
-    await chat.send(ROOT_BUTTON)
+async def test_skipping_the_choice_after_first_start(make_chat, i18n):
+    chat = make_chat()
+    await chat.choose_language("uz")
 
-    [summary] = await chat.send(done(i18n))
+    [summary] = await chat.send(BACK)
 
     assert summary.text.startswith("Klub tanlanmadi.")
     assert keyboard_rows(summary)[-1] == ["⚙️ Sozlamalar"]
@@ -304,7 +330,7 @@ async def test_league_without_data(chat, i18n):
     sent = await open_league(chat, i18n, "ucl")
 
     assert sent.text.endswith("Bu liga klublari hali yuklanmagan.")
-    assert keyboard_rows(sent) == [["⬅️ Ligalar", "✅ Tayyor"]]
+    assert keyboard_rows(sent) == [[BACK]]
 
 
 async def test_unknown_text_in_club_list_keeps_the_list(chat, db, clubs, i18n):
@@ -320,13 +346,16 @@ async def test_unknown_text_in_club_list_keeps_the_list(chat, db, clubs, i18n):
 async def test_club_name_outside_the_list_is_not_a_choice(chat, db, clubs, i18n):
     # Klublar ro'yxati ochilmagan: klub nomi oddiy tushunarsiz xabar.
     [reply] = await chat.send("Arsenal")
-
     assert reply.text == i18n.translate("uz", "unknown-message")
-    assert await favorite_names(db, chat.user_id) == []
 
-    # "Tayyor"dan keyin ham shunday: ro'yxat yopilgan.
-    await open_league(chat, i18n)
-    await chat.send(done(i18n))
+    # Ligalar ro'yxatida ham klub tanlanmaydi: liga tanlash so'raladi.
+    await chat.send(ROOT_BUTTON)
+    [reply] = await chat.send("Arsenal")
+    assert reply.text == "Pastdagi tugmalardan tanlang 👇"
+    assert keyboard_rows(reply)[-1] == [BACK]
+
+    # Bo'limdan chiqilgach ham shunday.
+    await chat.send(BACK)
     [reply] = await chat.send("Arsenal")
     assert reply.text == i18n.translate("uz", "unknown-message")
     assert await favorite_names(db, chat.user_id) == []

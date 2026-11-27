@@ -333,7 +333,12 @@ def make_chat(
 
 @pytest.fixture
 async def chat(make_chat: Callable[..., PrivateChat]) -> PrivateChat:
-    """O'zbek tilini tanlab bo'lgan foydalanuvchi. Yangi foydalanuvchi uchun make_chat() kerak."""
+    """O'zbek tilini tanlab, asosiy menyuga chiqqan foydalanuvchi.
+
+    Yangi foydalanuvchi uchun make_chat() kerak: til tanlangach unga sevimli klub tanlash
+    taklif qilinadi; bu yerda o'sha taklif "Orqaga" bilan o'tkazib yuborilgan.
+    """
     chat = make_chat()
     await chat.choose_language("uz")
+    await chat.send("⬅️ Orqaga")
     return chat
