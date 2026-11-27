@@ -105,7 +105,6 @@ standings-col-played = O'
 standings-col-wins = G'
 standings-col-draws = D
 standings-col-losses = M
-standings-col-goals = T
 standings-col-points = O
 standings-updated = 🕐 Yangilangan: { $time }
 # Pley-off bosqichlari nomlari (liga nomi yonida ko'rsatiladi).

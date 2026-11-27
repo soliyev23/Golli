@@ -105,7 +105,6 @@ standings-col-played = И
 standings-col-wins = В
 standings-col-draws = Н
 standings-col-losses = П
-standings-col-goals = М
 standings-col-points = О
 standings-updated = 🕐 Обновлено: { $time }
 # Названия стадий плей-офф (показываются рядом с названием лиги).

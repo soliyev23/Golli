@@ -105,7 +105,6 @@ standings-col-played = P
 standings-col-wins = W
 standings-col-draws = D
 standings-col-losses = L
-standings-col-goals = G
 standings-col-points = Pt
 standings-updated = 🕐 Updated: { $time }
 # Knockout stage names (shown next to the league name).

@@ -23,6 +23,7 @@ from aiogram.types import (
 from babel.dates import format_datetime
 
 from golli.bot import views
+from golli.bot.standings_view import DIFFERENCE_LABEL
 from golli.competitions import STAGE_ORDER
 from golli.db.standings import StandingRow
 from golli.i18n import Translator
@@ -198,12 +199,14 @@ def standings_message(
     names: TeamNames,
     tz: tzinfo,
 ) -> InputRichMessage:
-    """Turnir jadvali: o'rin, klub, o'yinlar, g'alaba, durang, mag'lubiyat, to'plar, ochko.
+    """Turnir jadvali: o'rin, klub, o'yinlar, g'alaba, durang, mag'lubiyat, to'plar farqi, ochko.
 
     Ustunlar soni ikki telefonda sinab tanlangan. Kam bo'lsa, jadval Android'da ekranning bir
     qisminigina egallaydi (Telegram xabar enini ichidagi eng keng narsaga qarab belgilaydi).
-    Ko'p bo'lsa (to'plar farqi ham qo'shilsa), iPhone'da klub ustuni torayib, ikki so'zli nom
-    ikki qatorga bo'linadi. Shuning uchun farq ustuni yo'q, klub nomi esa bo'linmaydi.
+    Keng bo'lsa, iPhone'da klub ustuni torayib, ikki so'zli nom ikki qatorga bo'linadi, kichik
+    ekranda (iPhone 14 Pro) jadval esa yon tomonga aylantiriladigan bo'lib qoladi. Shuning uchun
+    to'plar "18:4" ko'rinishida emas, bitta qiymat — farq (+14) bilan beriladi, klub nomi esa
+    bo'linmaydi.
     """
     header = [
         _cell("#", "right", header=True),
@@ -212,7 +215,7 @@ def standings_message(
         _cell(t("standings-col-wins"), "right", header=True),
         _cell(t("standings-col-draws"), "right", header=True),
         _cell(t("standings-col-losses"), "right", header=True),
-        _cell(t("standings-col-goals"), "center", header=True),
+        _cell(DIFFERENCE_LABEL, "right", header=True),
         _cell(t("standings-col-points"), "right", header=True),
     ]
     blocks: list = [_heading(t(f"competition-{competition}"), TITLE_SIZE)]
@@ -240,7 +243,8 @@ def standings_message(
                 _cell(str(row.wins), "right"),
                 _cell(str(row.draws), "right"),
                 _cell(str(row.losses), "right"),
-                _cell(f"{row.goals_for}:{row.goals_against}", "center"),
+                # Farq ishorasi bilan (+14, -7); nol bo'lsa ishorasiz.
+                _cell(f"{row.goal_difference:+d}" if row.goal_difference else "0", "right"),
                 _cell(RichTextBold(text=str(row.points)), "right"),
             ]
         )
