@@ -27,6 +27,7 @@ class ProviderError(Exception):
 class TeamData:
     external_id: str
     name: str
+    logo_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

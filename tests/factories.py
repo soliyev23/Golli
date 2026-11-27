@@ -4,6 +4,9 @@ from datetime import UTC, date, datetime
 
 from golli.providers.base import MatchData, MatchStatus, ProviderError, TeamData
 
+# Soxta Telegram (conftest.RecordingSession) botga shu username'ni beradi.
+BOT_USERNAME = "golli_test_bot"
+
 # Nom -> provayder ID'si. Nomlar data/team_names.toml dagi kalitlar bilan bir xil.
 TEAM_IDS = {
     "Arsenal": "36526",
@@ -16,8 +19,12 @@ TEAM_IDS = {
 }
 
 
+def logo_url(name: str) -> str:
+    return f"https://logos.test/{TEAM_IDS.get(name, name).replace(' ', '-')}.png"
+
+
 def team(name: str) -> TeamData:
-    return TeamData(external_id=TEAM_IDS.get(name, f"x-{name}"), name=name)
+    return TeamData(external_id=TEAM_IDS.get(name, f"x-{name}"), name=name, logo_url=logo_url(name))
 
 
 def match(

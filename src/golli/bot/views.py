@@ -3,13 +3,12 @@
 from datetime import date, datetime, timedelta, tzinfo
 from html import escape
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from babel.dates import format_date
 
-from golli.bot.callbacks import DayCallback, UpcomingCallback
 from golli.competitions import COMPETITIONS
 from golli.i18n import Translator
 from golli.providers.base import MatchStatus
+from golli.services.club_emoji import FALLBACK_EMOJI
 from golli.services.schedule import DayMatch
 from golli.services.team_names import TeamNames
 
@@ -18,6 +17,25 @@ _STATUS_NOTES = {
     MatchStatus.SUSPENDED: ("⏸", "status-suspended"),
     MatchStatus.CANCELLED: ("❌", "status-cancelled"),
 }
+
+
+# O'yin qatorida ikki klub orasidagi ajratgich. Qator telefonda bitta satrga sig'ishi uchun
+# qisqa chiziqcha (–) va klublarning qisqa nomlari ishlatiladi.
+VERSUS = " – "
+
+
+def club_label(
+    name: str, emoji_id: str | None, t: Translator, names: TeamNames, *, short: bool = False
+) -> str:
+    """Klub nomi foydalanuvchi tilida; logotipi bo'lsa, nom oldida maxsus emoji turadi.
+
+    `short` — o'yin qatorlari uchun qisqa nom ("Manchester Yunayted" o'rniga "MYU").
+    """
+    shown = names.short(name, t.locale) if short else names.get(name, t.locale)
+    label = escape(shown, quote=False)
+    if emoji_id is None:
+        return label
+    return f'<tg-emoji emoji-id="{emoji_id}">{FALLBACK_EMOJI}</tg-emoji> {label}'
 
 
 def is_live(match: DayMatch, now: datetime) -> bool:
@@ -36,38 +54,25 @@ def _title(day: date, today: date, t: Translator) -> str:
     return t(key, date=format_date(day, t("date-format"), locale=t.locale))
 
 
-def _after_midnight(match: DayMatch, day: date, tz: tzinfo) -> bool:
-    """Futbol kuniga kiradi, lekin taqvim bo'yicha ertasi kuni boshlanadi (00:00–06:00)."""
-    return match.kickoff_at.astimezone(tz).date() != day
-
-
-def _upcoming(match: DayMatch, now: datetime) -> bool:
-    return match.status is MatchStatus.SCHEDULED and match.kickoff_at > now
-
-
-def _match_line(
-    match: DayMatch, day: date, now: datetime, t: Translator, names: TeamNames, tz: tzinfo
-) -> str:
-    home = escape(names.get(match.home, t.locale), quote=False)
-    away = escape(names.get(match.away, t.locale), quote=False)
+def _match_line(match: DayMatch, now: datetime, t: Translator, names: TeamNames, tz: tzinfo) -> str:
+    home = club_label(match.home, match.home_emoji, t, names, short=True)
+    away = club_label(match.away, match.away_emoji, t, names, short=True)
     has_score = match.home_score is not None and match.away_score is not None
-    score = f"<b>{match.home_score}:{match.away_score}</b>" if has_score else "—"
+    score = f"<b>{match.home_score}:{match.away_score}</b>" if has_score else VERSUS.strip()
 
     if match.status is MatchStatus.FINISHED:
-        return f"✅ {score_line(match, t, names)}"
+        return score_line(match, t, names)
     if match.status in _STATUS_NOTES:
         icon, note = _STATUS_NOTES[match.status]
-        return f"{icon} {home} — {away} · {t(note)}"
+        return f"{icon} {home}{VERSUS}{away} · {t(note)}"
     if is_live(match, now):
         return f"🔴 {home} {score} {away}"
     kickoff = match.kickoff_at.astimezone(tz).strftime("%H:%M")
-    # 🌙: vaqt ro'yxat sarlavhasidagi sanaga emas, undan keyingi kechaga tegishli.
-    night = "🌙 " if _after_midnight(match, day, tz) else ""
-    return f"{night}{kickoff}  {home} — {away}"
+    return f"{kickoff} {home}{VERSUS}{away}"
 
 
 def match_groups(
-    day: date, matches: list[DayMatch], now: datetime, t: Translator, names: TeamNames, tz: tzinfo
+    matches: list[DayMatch], now: datetime, t: Translator, names: TeamNames, tz: tzinfo
 ) -> list[str]:
     """Bir kunning o'yinlari ligalar bo'yicha; har bir guruh oldida bo'sh qator."""
     lines: list[str] = []
@@ -76,18 +81,14 @@ def match_groups(
         if not group:
             continue
         lines += ["", f"<b>{t('competition-' + competition)}</b>"]
-        lines += [_match_line(match, day, now, t, names, tz) for match in group]
-
-    if any(_upcoming(match, now) and _after_midnight(match, day, tz) for match in matches):
-        next_date = format_date(day + timedelta(days=1), t("date-short-format"), locale=t.locale)
-        lines += ["", t("matches-night-note", date=next_date)]
+        lines += [_match_line(match, now, t, names, tz) for match in group]
     return lines
 
 
 def score_line(match: DayMatch, t: Translator, names: TeamNames) -> str:
     """ "Arsenal <b>2:1</b> Chelsi (pen. 4:3)" — tugagan o'yin uchun."""
-    home = escape(names.get(match.home, t.locale), quote=False)
-    away = escape(names.get(match.away, t.locale), quote=False)
+    home = club_label(match.home, match.home_emoji, t, names, short=True)
+    away = club_label(match.away, match.away_emoji, t, names, short=True)
     line = f"{home} <b>{match.home_score}:{match.away_score}</b> {away}"
     if match.home_penalties is not None and match.away_penalties is not None:
         penalties = t("penalties", home=match.home_penalties, away=match.away_penalties)
@@ -107,7 +108,7 @@ def _day_block(
     title = _title(day, today, t)
     if not matches:
         return [title, "", t("matches-none")]
-    return [title, *match_groups(day, matches, now, t, names, tz)]
+    return [title, *match_groups(matches, now, t, names, tz)]
 
 
 def render_days(
@@ -127,10 +128,16 @@ def render_days(
         lines += _day_block(day, matches, today, now, t, names, tz)
 
     all_matches = [match for _, matches in days for match in matches]
-    if all_matches:
-        lines += ["", t("matches-footer")]
+    notes = []
+    # Vaqt mintaqasi haqidagi izoh faqat ro'yxatda boshlanish vaqti ko'rsatilganda kerak.
+    if any(
+        match.status is MatchStatus.SCHEDULED and not is_live(match, now) for match in all_matches
+    ):
+        notes.append(t("matches-footer"))
     if any(is_live(match, now) for match in all_matches):
-        lines.append(t("matches-live-note"))
+        notes.append(t("matches-live-note"))
+    if notes:
+        lines += ["", *notes]
     return "\n".join(lines)
 
 
@@ -138,38 +145,5 @@ def render_no_upcoming(t: Translator) -> str:
     return f"<b>{t('menu-matches')}</b>\n\n{t('matches-none-upcoming')}"
 
 
-def _short(day: date, t: Translator) -> str:
-    return f"{format_date(day, 'EEE', locale=t.locale)} {day:%d.%m}"
-
-
-def day_navigation(
-    first: date,
-    last: date,
-    match_days: list[date],
-    t: Translator,
-    *,
-    back_to_upcoming: bool,
-) -> InlineKeyboardMarkup | None:
-    """Ko'rsatilgan kunlardan (first..last) oldingi va keyingi o'yin kuniga o'tish tugmalari.
-
-    O'yinsiz kunlar tashlab ketiladi. Bitta kun ko'rilayotganda o'rtada asosiy
-    ro'yxatga ("Yaqin o'yinlar") qaytish tugmasi turadi.
-    """
-
-    def day_button(text: str, target: date) -> InlineKeyboardButton:
-        return InlineKeyboardButton(
-            text=text, callback_data=DayCallback(day=target.isoformat()).pack()
-        )
-
-    previous = max((d for d in match_days if d < first), default=None)
-    following = min((d for d in match_days if d > last), default=None)
-    row = []
-    if previous is not None:
-        row.append(day_button(f"◀️ {_short(previous, t)}", previous))
-    if back_to_upcoming:
-        row.append(
-            InlineKeyboardButton(text=t("menu-matches"), callback_data=UpcomingCallback().pack())
-        )
-    if following is not None:
-        row.append(day_button(f"{_short(following, t)} ▶️", following))
-    return InlineKeyboardMarkup(inline_keyboard=[row]) if row else None
+def render_no_recent(t: Translator) -> str:
+    return f"<b>{t('menu-recent')}</b>\n\n{t('matches-none-recent')}"

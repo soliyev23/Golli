@@ -17,11 +17,11 @@ async def store(db, *items):
         await upsert_matches(session, "fake", items)
 
 
-async def test_matches_are_grouped_by_football_day(db, schedule):
+async def test_matches_are_grouped_by_calendar_date(db, schedule):
     await store(
         db,
         match("evening", datetime(2026, 11, 28, 20, 0, tzinfo=TASHKENT)),
-        # Yarim tundan keyin boshlanadi, lekin shanba ro'yxatiga kiradi.
+        # Yarim tundan keyin boshlanadi: shanba emas, o'z sanasi — yakshanba ro'yxatiga kiradi.
         match("night", datetime(2026, 11, 29, 1, 0, tzinfo=TASHKENT), "Real Madrid", "Barcelona"),
         match("sunday", datetime(2026, 11, 29, 19, 0, tzinfo=TASHKENT), "Liverpool", "Everton"),
     )
@@ -30,11 +30,8 @@ async def test_matches_are_grouped_by_football_day(db, schedule):
 
     saturday = await schedule.get_day(TODAY)
     sunday = await schedule.get_day(TODAY + timedelta(days=1))
-    assert [(m.home, m.away) for m in saturday] == [
-        ("Arsenal", "Manchester City"),
-        ("Real Madrid", "Barcelona"),
-    ]
-    assert [m.home for m in sunday] == ["Liverpool"]
+    assert [(m.home, m.away) for m in saturday] == [("Arsenal", "Manchester City")]
+    assert [m.home for m in sunday] == ["Real Madrid", "Liverpool"]
     assert await schedule.get_match_days(NOW) == [TODAY, TODAY + timedelta(days=1)]
 
 

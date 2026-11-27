@@ -1,10 +1,12 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from aiogram.methods import AnswerCallbackQuery, EditMessageText, SendMessage, SetMyCommands
 from sqlalchemy import func, select
 
 from factories import match
+from golli.bot.handlers.matches import recent_text, upcoming_text
 from golli.db.matches import upsert_matches
 from golli.db.models import User
 from golli.providers.base import MatchStatus
@@ -70,7 +72,12 @@ async def test_choosing_language_saves_it_and_welcomes(make_chat, db, i18n, code
     t = i18n.translator(code)
     assert (await get_user(db, chat.user_id)).lang == code
     assert texts(sent) == [t("start-welcome", name="Ali")]
-    assert menu_buttons(sent[0]) == [t("menu-matches"), t("menu-favorites"), t("menu-language")]
+    assert menu_buttons(sent[0]) == [
+        t("menu-matches"),
+        t("menu-recent"),
+        t("menu-favorites"),
+        t("menu-language"),
+    ]
 
     answer, edit, _, commands = chat.requests
     assert isinstance(answer, AnswerCallbackQuery)
@@ -146,13 +153,15 @@ async def test_menu_buttons_are_recognised_in_every_language(make_chat, i18n, co
     assert favorites.text.startswith(t("favorites-title"))
     [upcoming] = await chat.send(t("menu-matches"))
     assert upcoming.text.endswith(t("matches-none-upcoming"))
+    [recent] = await chat.send(t("menu-recent"))
+    assert recent.text.endswith(t("matches-none-recent"))
 
 
 async def test_unknown_text_gets_hint_with_menu(chat, i18n):
     sent = await chat.send("salom")
 
     assert texts(sent) == [i18n.translate("uz", "unknown-message")]
-    assert len(menu_buttons(sent[0])) == 3
+    assert len(menu_buttons(sent[0])) == 4
 
 
 # --- Yaqin o'yinlar
@@ -163,19 +172,18 @@ async def store(db, *items):
         await upsert_matches(session, "fake", items)
 
 
-def nav_targets(message) -> list[str]:
-    return [b.callback_data for row in message.reply_markup.inline_keyboard for b in row]
-
-
 def finished(external_id: str, kickoff_at, home: str, away: str, **kwargs):
     return match(
         external_id, kickoff_at, home, away, status=MatchStatus.FINISHED, score=(2, 1), **kwargs
     )
 
 
+def day_titles(text: str) -> int:
+    return sum(line.startswith("⚽ <b>") for line in text.split("\n"))
+
+
 async def test_matches_today_are_shown_with_the_next_match_day(chat, db, schedule):
-    today = schedule.today()
-    start, _ = day_bounds(today, schedule.tz)
+    start, _ = day_bounds(schedule.today(), schedule.tz)
     await store(
         db,
         finished(
@@ -190,17 +198,14 @@ async def test_matches_today_are_shown_with_the_next_match_day(chat, db, schedul
 
     lines = sent.text.split("\n")
     assert lines[0].startswith("⚽ <b>Bugun, ")
-    assert "✅ Real Madrid <b>2:1</b> Barselona" in lines
-    assert sum(line.startswith("⚽ <b>") for line in lines) == 2
-    assert any("Liverpul — Everton" in line for line in lines)
+    assert "Real Madrid <b>2:1</b> Barselona" in lines
+    assert day_titles(sent.text) == 2
+    assert any("Liverpul – Everton" in line for line in lines)
     assert "Arsenal" not in sent.text
-    # Tugma ko'rsatilgan ikki kundan keyingi o'yin kuniga olib boradi.
-    assert nav_targets(sent) == [f"day:{(today + timedelta(days=5)).isoformat()}"]
 
 
 async def test_no_matches_today_starts_from_nearest_match_day(chat, db, schedule):
-    today = schedule.today()
-    start, _ = day_bounds(today, schedule.tz)
+    start, _ = day_bounds(schedule.today(), schedule.tz)
     await store(
         db,
         finished("old", start - timedelta(days=1, hours=-12), "Arsenal", "Everton"),
@@ -218,14 +223,10 @@ async def test_no_matches_today_starts_from_nearest_match_day(chat, db, schedule
     [sent] = await chat.send("⚽ Yaqin o'yinlar")
 
     assert "Bugun" not in sent.text
-    assert "Real Madrid — Barselona" in sent.text
-    assert "Liverpul — Everton" in sent.text
-    assert "Manchester Siti" not in sent.text
+    assert "Real Madrid – Barselona" in sent.text
+    assert "Liverpul – Everton" in sent.text
+    assert "Man Siti" not in sent.text
     assert sent.text.index("Real Madrid") < sent.text.index("Liverpul")
-    assert nav_targets(sent) == [
-        f"day:{(today - timedelta(days=1)).isoformat()}",
-        f"day:{(today + timedelta(days=6)).isoformat()}",
-    ]
 
 
 async def test_single_upcoming_match_day(chat, db, schedule):
@@ -234,69 +235,209 @@ async def test_single_upcoming_match_day(chat, db, schedule):
 
     [sent] = await chat.send("⚽ Yaqin o'yinlar")
 
-    assert sum(line.startswith("⚽ <b>") for line in sent.text.split("\n")) == 1
-    assert sent.reply_markup is None
+    assert day_titles(sent.text) == 1
 
 
 async def test_nothing_upcoming(chat, db, schedule):
-    today = schedule.today()
-    start, _ = day_bounds(today, schedule.tz)
+    start, _ = day_bounds(schedule.today(), schedule.tz)
     await store(db, finished("old", start - timedelta(hours=12), "Arsenal", "Everton"))
 
     [sent] = await chat.send("⚽ Yaqin o'yinlar")
 
     assert sent.text == "<b>⚽ Yaqin o'yinlar</b>\n\nYaqin kunlarda o'yin yo'q."
-    assert nav_targets(sent) == [f"day:{(today - timedelta(days=1)).isoformat()}"]
 
 
-async def test_day_button_shows_that_single_day(chat, db, schedule):
-    today = schedule.today()
-    start, _ = day_bounds(today, schedule.tz)
-    tomorrow = today + timedelta(days=1)
+@pytest.mark.parametrize("button", ["⚽ Yaqin o'yinlar", "🏁 Oxirgi o'yinlar"])
+async def test_lists_have_no_day_buttons_and_refresh_the_menu(chat, db, schedule, button):
+    start, _ = day_bounds(schedule.today(), schedule.tz)
     await store(
         db,
+        finished("old", start - timedelta(hours=12), "Arsenal", "Everton"),
+        finished("older", start - timedelta(days=2, hours=12), "Liverpool", "Everton"),
         match("m1", start + timedelta(days=1, hours=12), "Liverpool", "Everton"),
-        match("m2", start + timedelta(days=2, hours=12), "Arsenal", "Manchester City"),
+        match("m2", start + timedelta(days=3, hours=12), "Arsenal", "Manchester City"),
     )
 
-    assert await chat.press(f"day:{tomorrow.isoformat()}") == []
+    [sent] = await chat.send(button)
+
+    # Xabar ostida kundan kunga o'tish tugmalari yo'q; javob bilan asosiy menyu keladi.
+    assert menu_buttons(sent) == [
+        "⚽ Yaqin o'yinlar",
+        "🏁 Oxirgi o'yinlar",
+        "⭐ Sevimli klublar",
+        "🌐 Til",
+    ]
+
+
+@pytest.mark.parametrize("data", ["day:2026-11-26", "day:bugun-emas", "upcoming"])
+async def test_button_left_in_an_old_message_turns_it_into_the_current_list(
+    chat, db, schedule, data
+):
+    start, _ = day_bounds(schedule.today(), schedule.tz)
+    await store(db, match("m1", start + timedelta(days=1, hours=12), "Liverpool", "Everton"))
+
+    assert await chat.press(data) == []
 
     answer, edit = chat.requests
     assert isinstance(answer, AnswerCallbackQuery)
     assert isinstance(edit, EditMessageText)
-    assert edit.text.startswith("⚽ <b>Ertaga, ")
-    assert "Liverpul — Everton" in edit.text
-    assert "Arsenal" not in edit.text
-    # O'rtadagi tugma asosiy ro'yxatga qaytaradi.
-    assert nav_targets(edit) == ["upcoming", f"day:{(today + timedelta(days=2)).isoformat()}"]
+    assert "Liverpul – Everton" in edit.text
+    assert edit.reply_markup is None
 
 
-async def test_back_button_returns_to_upcoming_list(chat, db, schedule):
+# --- Oxirgi o'yinlar
+
+
+async def test_recent_shows_the_last_two_match_days_newest_first(chat, db, schedule):
     start, _ = day_bounds(schedule.today(), schedule.tz)
     await store(
         db,
-        match("m1", start + timedelta(days=1, hours=12), "Liverpool", "Everton"),
-        match("m2", start + timedelta(days=2, hours=12), "Arsenal", "Manchester City"),
+        finished("d9", start - timedelta(days=9, hours=-12), "Arsenal", "Manchester City"),
+        finished("d5", start - timedelta(days=5, hours=-12), "Liverpool", "Everton"),
+        # Orada o'yinsiz kunlar bor: ular tashlab ketiladi.
+        finished(
+            "d2",
+            start - timedelta(days=2, hours=-12),
+            "Real Madrid",
+            "Barcelona",
+            competition="laliga",
+        ),
+        match("next", start + timedelta(days=1, hours=12), "Arsenal", "Everton"),
     )
 
-    await chat.press("upcoming")
+    [sent] = await chat.send("🏁 Oxirgi o'yinlar")
 
-    edit = chat.requests[-1]
-    assert isinstance(edit, EditMessageText)
-    assert "Liverpul — Everton" in edit.text
-    assert "Arsenal — Manchester Siti" in edit.text
+    assert day_titles(sent.text) == 2
+    assert "Real Madrid <b>2:1</b> Barselona" in sent.text
+    assert "Liverpul <b>2:1</b> Everton" in sent.text
+    assert sent.text.index("Real Madrid") < sent.text.index("Liverpul")
+    assert "Man Siti" not in sent.text
+    # Natijalar ro'yxatida soat yo'q, demak vaqt mintaqasi haqida izoh ham yo'q.
+    assert "Toshkent" not in sent.text
 
 
-@pytest.mark.parametrize("data", ["day:2020-01-01", "day:2099-01-01", "day:bugun-emas"])
-async def test_stale_or_broken_day_button_shows_upcoming_list(chat, db, schedule, data):
+async def test_nothing_recent(chat, db, schedule):
     start, _ = day_bounds(schedule.today(), schedule.tz)
-    await store(db, match("m1", start + timedelta(days=1, hours=12), "Liverpool", "Everton"))
+    await store(db, match("next", start + timedelta(days=1, hours=12)))
 
-    await chat.press(data)
+    [sent] = await chat.send("🏁 Oxirgi o'yinlar")
 
-    edit = chat.requests[-1]
-    assert isinstance(edit, EditMessageText)
-    assert "Liverpul — Everton" in edit.text
+    assert sent.text == "<b>🏁 Oxirgi o'yinlar</b>\n\nSo'nggi kunlarda o'yin bo'lmadi."
+
+
+# --- Yarim tun atrofida
+
+TASHKENT = ZoneInfo("Asia/Tashkent")
+
+
+def tashkent(day: int, hour: int, minute: int = 0) -> datetime:
+    return datetime(2026, 11, day, hour, minute, tzinfo=TASHKENT)
+
+
+async def upcoming(schedule, i18n, names, now: datetime) -> str:
+    await schedule.rebuild(now)
+    return await upcoming_text(schedule, now, i18n.translator("uz"), names)
+
+
+async def recent(schedule, i18n, names, now: datetime) -> str:
+    await schedule.rebuild(now)
+    return await recent_text(schedule, now, i18n.translator("uz"), names)
+
+
+async def test_night_match_is_listed_under_its_own_date(db, schedule, i18n, names):
+    await store(
+        db,
+        match("sat", tashkent(28, 20), "Arsenal", "Manchester City"),
+        match("night", tashkent(29, 1), "Real Madrid", "Barcelona", competition="laliga"),
+    )
+
+    lines = (await upcoming(schedule, i18n, names, tashkent(28, 12))).split("\n")
+
+    saturday = lines.index("⚽ <b>Bugun, 28-noyabr, shanba</b>")
+    sunday = lines.index("⚽ <b>Ertaga, 29-noyabr, yakshanba</b>")
+    assert saturday < lines.index("20:00 Arsenal – Man Siti") < sunday
+    assert lines.index("01:00 Real Madrid – Barselona") > sunday
+    assert "🌙" not in "".join(lines)
+
+
+async def test_match_still_in_play_after_midnight_stays_in_the_list(db, schedule, i18n, names):
+    await store(
+        db,
+        finished("early", tashkent(28, 17), "Liverpool", "Everton"),
+        match("late", tashkent(28, 23), status=MatchStatus.LIVE, score=(1, 0)),
+        match("night", tashkent(29, 1), "Real Madrid", "Barcelona", competition="laliga"),
+        match("monday", tashkent(30, 20), "Club Brugge KV", "Liverpool", competition="ucl"),
+    )
+
+    # Yakshanba 00:30: shanba kungi o'yin hali ketmoqda — ro'yxat kechadan boshlanadi.
+    text = await upcoming(schedule, i18n, names, tashkent(29, 0, 30))
+    assert text.startswith("⚽ <b>Kecha, 28-noyabr, shanba</b>")
+    assert "🔴 Arsenal <b>1:0</b> Man Siti" in text
+    assert "⚽ <b>Bugun, 29-noyabr, yakshanba</b>" in text
+    assert "Bryugge" not in text
+
+    # O'yin tugagach ro'yxat yana bugundan boshlanadi.
+    await store(db, finished("late", tashkent(28, 23), "Arsenal", "Manchester City"))
+    text = await upcoming(schedule, i18n, names, tashkent(29, 1, 30))
+    assert text.startswith("⚽ <b>Bugun, 29-noyabr, yakshanba</b>")
+    assert "Kecha" not in text
+    assert "Bryugge – Liverpul" in text
+
+
+async def test_stuck_match_does_not_hold_yesterday_in_the_list(db, schedule, i18n, names):
+    # Holati yangilanmay qolgan kechagi o'yin ro'yxatni ertasi kuni ham kechadan boshlatmaydi.
+    await store(
+        db,
+        match("stuck", tashkent(28, 17), status=MatchStatus.LIVE, score=(1, 0)),
+        match("sunday", tashkent(29, 19), "Liverpool", "Everton"),
+    )
+
+    text = await upcoming(schedule, i18n, names, tashkent(29, 10))
+
+    assert text.startswith("⚽ <b>Bugun, 29-noyabr, yakshanba</b>")
+
+
+async def test_recent_keeps_night_match_under_its_own_date(db, schedule, i18n, names):
+    await store(
+        db,
+        finished("sat", tashkent(28, 20), "Arsenal", "Manchester City"),
+        finished("night", tashkent(29, 1), "Real Madrid", "Barcelona", competition="laliga"),
+    )
+
+    lines = (await recent(schedule, i18n, names, tashkent(29, 12))).split("\n")
+
+    sunday = lines.index("⚽ <b>Bugun, 29-noyabr, yakshanba</b>")
+    saturday = lines.index("⚽ <b>Kecha, 28-noyabr, shanba</b>")
+    assert sunday < lines.index("Real Madrid <b>2:1</b> Barselona") < saturday
+    assert lines.index("Arsenal <b>2:1</b> Man Siti") > saturday
+
+
+async def test_recent_lists_only_matches_that_are_over(db, schedule, i18n, names):
+    await store(
+        db,
+        finished("early", tashkent(28, 17), "Liverpool", "Everton"),
+        match("live", tashkent(28, 20), status=MatchStatus.LIVE, score=(1, 0)),
+        match("late", tashkent(28, 23), "Real Madrid", "Barcelona", competition="laliga"),
+        match(
+            "off",
+            tashkent(28, 22),
+            "Club Brugge KV",
+            "Liverpool",
+            competition="ucl",
+            status=MatchStatus.POSTPONED,
+        ),
+        # Ertangi kun: hali hech bir o'yin tugamagan, shuning uchun ro'yxatga kirmaydi.
+        match("sunday", tashkent(29, 19), "Arsenal", "Everton"),
+    )
+
+    text = await recent(schedule, i18n, names, tashkent(28, 21))
+
+    assert text.split("\n")[0] == "⚽ <b>Bugun, 28-noyabr, shanba</b>"
+    assert "Liverpul <b>2:1</b> Everton" in text
+    assert "⏸ Bryugge – Liverpul · ko'chirilgan" in text
+    assert "Man Siti" not in text
+    assert "Real Madrid" not in text
+    assert "29-noyabr" not in text
 
 
 # --- Bloklash va guruhlar

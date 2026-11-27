@@ -48,6 +48,10 @@ def _parse_score(raw: str | None) -> tuple[int | None, int | None]:
     return int(home), int(away)
 
 
+def _parse_team(raw: Mapping[str, Any]) -> TeamData:
+    return TeamData(str(raw["id"]), raw["name"], raw.get("logo") or None)
+
+
 def parse_match(raw: Mapping[str, Any], competition: str) -> MatchData:
     state = raw["state"]
     status = _STATUSES.get(state["description"])
@@ -63,8 +67,8 @@ def parse_match(raw: Mapping[str, Any], competition: str) -> MatchData:
         kickoff_at=datetime.fromisoformat(raw["date"]),
         status=status,
         minute=state.get("clock") if status is MatchStatus.LIVE else None,
-        home=TeamData(str(raw["homeTeam"]["id"]), raw["homeTeam"]["name"]),
-        away=TeamData(str(raw["awayTeam"]["id"]), raw["awayTeam"]["name"]),
+        home=_parse_team(raw["homeTeam"]),
+        away=_parse_team(raw["awayTeam"]),
         home_score=home_score,
         away_score=away_score,
         home_penalties=home_penalties,

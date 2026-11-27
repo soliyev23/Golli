@@ -1,11 +1,11 @@
 """Sevimli klublar bo'limining matn va tugmalari."""
 
-from html import escape
 from math import ceil
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from golli.bot.callbacks import FavoriteListCallback, FavoritesCallback, FavoriteToggleCallback
+from golli.bot.views import club_label
 from golli.competitions import COMPETITIONS
 from golli.db.models import Team
 from golli.i18n import Translator
@@ -20,7 +20,7 @@ def root_text(favorites: list[Team], t: Translator, names: TeamNames) -> str:
     lines = [t("favorites-title"), ""]
     if favorites:
         lines.append(t("favorites-current"))
-        lines += [f"• {escape(names.get(team.name, t.locale), quote=False)}" for team in favorites]
+        lines += [f"• {club_label(team.name, team.emoji_id, t, names)}" for team in favorites]
     else:
         lines.append(t("favorites-empty"))
     lines += ["", t("favorites-hint")]
@@ -70,6 +70,8 @@ def list_keyboard(
     buttons = [
         InlineKeyboardButton(
             text=("✅ " if team.id in selected else "") + names.get(team.name, t.locale),
+            # Klub logotipi tugma matni oldida (emoji hali yaratilmagan bo'lsa — None).
+            icon_custom_emoji_id=team.emoji_id,
             callback_data=FavoriteToggleCallback(
                 competition=competition, page=page, team_id=team.id
             ).pack(),

@@ -38,6 +38,10 @@ class Team(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # Provayder bergan nom. Tarjimalari bazada emas, data/team_names.toml faylida.
     name: Mapped[str] = mapped_column(String(128))
+    # Provayder bergan logotip havolasi va undan yasalgan Telegram maxsus emojisi
+    # (services/club_emoji.py). Emoji hali yaratilmagan bo'lsa — NULL.
+    logo_url: Mapped[str | None] = mapped_column(String(255))
+    emoji_id: Mapped[str | None] = mapped_column(String(32))
 
 
 class Match(Base):
@@ -100,7 +104,7 @@ class Notification(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
     kind: Mapped[str] = mapped_column(String(16))  # morning | pre_match | result
     match_id: Mapped[int | None] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"))
-    day: Mapped[date | None] = mapped_column(Date)  # ertalabki xabar uchun futbol kuni
+    day: Mapped[date | None] = mapped_column(Date)  # ertalabki xabar yuboriladigan sana
     dedupe_key: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(16), server_default="pending")
     attempts: Mapped[int] = mapped_column(SmallInteger, server_default="0")

@@ -9,6 +9,7 @@ cmd-help = Yordam
 ## Asosiy menyu tugmalari
 
 menu-matches = ⚽ Yaqin o'yinlar
+menu-recent = 🏁 Oxirgi o'yinlar
 menu-favorites = ⭐ Sevimli klublar
 menu-language = 🌐 Til
 
@@ -36,6 +37,8 @@ help-text =
 
     ⚽ <b>Yaqin o'yinlar</b> — Chempionlar ligasi, APL va La Liga o'yinlari, Toshkent vaqti bilan.
 
+    🏁 <b>Oxirgi o'yinlar</b> — oxirgi ikki o'yin kunining natijalari.
+
     ⭐ <b>Sevimli klublar</b> — klub tanlang, uning o'yinlari haqida eslatib turaman:
     • o'yin kuni ertalab;
     • o'yinga 1 soat qolganda;
@@ -58,16 +61,15 @@ competition-laliga = 🇪🇸 La Liga
 
 # Sana ko'rinishi (Unicode CLDR andozasi): 28-noyabr, shanba
 date-format = d-MMMM, EEEE
-date-short-format = d-MMMM
 matches-title-today = ⚽ <b>Bugun, { $date }</b>
 matches-title-tomorrow = ⚽ <b>Ertaga, { $date }</b>
 matches-title-yesterday = ⚽ <b>Kecha, { $date }</b>
 matches-title-day = ⚽ <b>{ $date }</b>
 matches-none = Bu kuni o'yin yo'q.
 matches-none-upcoming = Yaqin kunlarda o'yin yo'q.
+matches-none-recent = So'nggi kunlarda o'yin bo'lmadi.
 matches-footer = 🕐 Vaqt — Toshkent bo'yicha
 matches-live-note = 🔴 O'yin ketmoqda — hisob kechikib yangilanadi
-matches-night-note = 🌙 Yarim tundan keyin ({ $date })
 status-postponed = ko'chirilgan
 status-suspended = to'xtatilgan
 status-cancelled = bekor qilingan
@@ -87,7 +89,7 @@ favorites-no-teams = Bu liga klublari hali yuklanmagan.
 
 ## Eslatmalar
 
-notify-morning-title = ☀️ <b>Bugun sevimli klubingiz o'ynaydi</b>
+notify-morning-title = ☀️ <b>Sevimli klubingiz o'ynaydi</b>
 notify-pre-hour = ⏰ <b>O'yinga 1 soat qoldi</b>
 notify-pre-minutes = ⏰ <b>O'yinga { $minutes } daqiqa qoldi</b>
 notify-result-title = 🏁 <b>O'yin tugadi</b>

@@ -9,6 +9,7 @@ cmd-help = Помощь
 ## Кнопки главного меню
 
 menu-matches = ⚽ Ближайшие матчи
+menu-recent = 🏁 Последние матчи
 menu-favorites = ⭐ Любимые клубы
 menu-language = 🌐 Язык
 
@@ -36,6 +37,8 @@ help-text =
 
     ⚽ <b>Ближайшие матчи</b> — матчи Лиги чемпионов, АПЛ и Ла Лиги по ташкентскому времени.
 
+    🏁 <b>Последние матчи</b> — результаты двух последних игровых дней.
+
     ⭐ <b>Любимые клубы</b> — выберите клуб, и я буду напоминать о его матчах:
     • утром в день матча;
     • за час до начала;
@@ -58,16 +61,15 @@ competition-laliga = 🇪🇸 Ла Лига
 
 # Вид даты (шаблон Unicode CLDR): 28 ноября, суббота
 date-format = d MMMM, EEEE
-date-short-format = d MMMM
 matches-title-today = ⚽ <b>Сегодня, { $date }</b>
 matches-title-tomorrow = ⚽ <b>Завтра, { $date }</b>
 matches-title-yesterday = ⚽ <b>Вчера, { $date }</b>
 matches-title-day = ⚽ <b>{ $date }</b>
 matches-none = В этот день матчей нет.
 matches-none-upcoming = В ближайшие дни матчей нет.
+matches-none-recent = В последние дни матчей не было.
 matches-footer = 🕐 Время — ташкентское
 matches-live-note = 🔴 Матч идёт — счёт обновляется с задержкой
-matches-night-note = 🌙 После полуночи ({ $date })
 status-postponed = перенесён
 status-suspended = прерван
 status-cancelled = отменён
@@ -87,7 +89,7 @@ favorites-no-teams = Клубы этой лиги пока не загружен
 
 ## Напоминания
 
-notify-morning-title = ☀️ <b>Сегодня играет ваш любимый клуб</b>
+notify-morning-title = ☀️ <b>Играет ваш любимый клуб</b>
 notify-pre-hour = ⏰ <b>До матча остался 1 час</b>
 notify-pre-minutes = ⏰ <b>До матча { $minutes } мин.</b>
 notify-result-title = 🏁 <b>Матч окончен</b>

@@ -7,14 +7,18 @@ class LangCallback(CallbackData, prefix="lang"):
     code: str
 
 
+# DayCallback va UpcomingCallback tugmalari endi yuborilmaydi (kundan kunga o'tish olib
+# tashlangan). Ular eski xabarlarda qolgan tugmalarni tanib, javobsiz qoldirmaslik uchun turibdi.
+
+
 class DayCallback(CallbackData, prefix="day"):
-    """O'yinlar ro'yxatida boshqa kunga o'tish: callback_data = "day:<YYYY-MM-DD>"."""
+    """Eski: o'yinlar ro'yxatida boshqa kunga o'tish, callback_data = "day:<YYYY-MM-DD>"."""
 
     day: str
 
 
 class UpcomingCallback(CallbackData, prefix="upcoming"):
-    """Bitta kun ko'rinishidan asosiy ro'yxatga ("Yaqin o'yinlar") qaytish."""
+    """Eski: bitta kun ko'rinishidan asosiy ro'yxatga ("Yaqin o'yinlar") qaytish."""
 
 
 class FavoritesCallback(CallbackData, prefix="fav"):

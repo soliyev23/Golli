@@ -23,6 +23,10 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
 
+    # Klub logotiplari emoji to'plamining egasi bo'ladigan Telegram foydalanuvchisi (ID).
+    # Berilmagan bo'lsa, emoji yaratilmaydi va klublar logotipsiz ko'rsatiladi.
+    emoji_owner_id: int | None = None
+
     default_locale: str = "uz"
     # O'yin vaqtlari va "bugun" tushunchasi shu vaqt mintaqasida hisoblanadi.
     timezone: str = "Asia/Tashkent"

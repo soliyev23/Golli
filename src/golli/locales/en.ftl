@@ -9,6 +9,7 @@ cmd-help = Help
 ## Main menu buttons
 
 menu-matches = ⚽ Upcoming matches
+menu-recent = 🏁 Recent matches
 menu-favorites = ⭐ Favourite clubs
 menu-language = 🌐 Language
 
@@ -36,6 +37,8 @@ help-text =
 
     ⚽ <b>Upcoming matches</b> — Champions League, Premier League and La Liga fixtures, in Tashkent time.
 
+    🏁 <b>Recent matches</b> — results from the last two match days.
+
     ⭐ <b>Favourite clubs</b> — pick a club and I'll remind you about its matches:
     • on the morning of match day;
     • one hour before kick-off;
@@ -58,16 +61,15 @@ competition-laliga = 🇪🇸 La Liga
 
 # Date pattern (Unicode CLDR): Saturday, 28 November
 date-format = EEEE, d MMMM
-date-short-format = d MMMM
 matches-title-today = ⚽ <b>Today, { $date }</b>
 matches-title-tomorrow = ⚽ <b>Tomorrow, { $date }</b>
 matches-title-yesterday = ⚽ <b>Yesterday, { $date }</b>
 matches-title-day = ⚽ <b>{ $date }</b>
 matches-none = No matches on this day.
 matches-none-upcoming = No matches in the coming days.
+matches-none-recent = No matches in recent days.
 matches-footer = 🕐 Times are in Tashkent time
 matches-live-note = 🔴 In play — the score updates with a delay
-matches-night-note = 🌙 After midnight ({ $date })
 status-postponed = postponed
 status-suspended = suspended
 status-cancelled = cancelled
@@ -87,7 +89,7 @@ favorites-no-teams = This league's clubs haven't been loaded yet.
 
 ## Reminders
 
-notify-morning-title = ☀️ <b>Your favourite club plays today</b>
+notify-morning-title = ☀️ <b>Your favourite club is playing</b>
 notify-pre-hour = ⏰ <b>One hour to kick-off</b>
 notify-pre-minutes = ⏰ <b>{ $minutes } min to kick-off</b>
 notify-result-title = 🏁 <b>Full time</b>

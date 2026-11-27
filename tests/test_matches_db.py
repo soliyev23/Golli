@@ -1,8 +1,9 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
-from factories import match
+from factories import logo_url, match
 from golli.db.matches import has_unfinished, unfinished_kickoffs, upsert_matches
 from golli.db.models import ExternalRef, Match, Team
 from golli.providers.base import MatchStatus
@@ -137,3 +138,47 @@ async def test_unfinished_queries(db):
     ]
     assert stale is True
     assert none is False
+
+
+async def teams_by_name(db) -> dict[str, Team]:
+    async with db() as session:
+        return {team.name: team for team in await session.scalars(select(Team))}
+
+
+async def test_team_logo_is_stored_and_filled_in_for_known_teams(db):
+    without_logo = match("m1", KICKOFF)
+    without_logo = replace(
+        without_logo,
+        home=replace(without_logo.home, logo_url=None),
+        away=replace(without_logo.away, logo_url=None),
+    )
+    await upsert(db, without_logo)
+    assert (await teams_by_name(db))["Arsenal"].logo_url is None
+
+    # Keyingi sinxronizatsiyada havola keladi: mavjud klubga yozib qo'yiladi.
+    await upsert(db, match("m1", KICKOFF))
+
+    assert (await teams_by_name(db))["Arsenal"].logo_url == logo_url("Arsenal")
+
+
+async def test_changed_logo_drops_the_old_emoji(db):
+    await upsert(db, match("m1", KICKOFF))
+    async with db.begin() as session:
+        await session.execute(update(Team).values(emoji_id="5001"))
+
+    # Havola o'sha-o'sha: emoji joyida qoladi.
+    await upsert(db, match("m1", KICKOFF))
+    assert (await teams_by_name(db))["Arsenal"].emoji_id == "5001"
+
+    rebranded = match("m1", KICKOFF)
+    rebranded = replace(
+        rebranded, home=replace(rebranded.home, logo_url="https://logos.test/arsenal-new.png")
+    )
+    await upsert(db, rebranded)
+
+    teams = await teams_by_name(db)
+    assert (teams["Arsenal"].logo_url, teams["Arsenal"].emoji_id) == (
+        "https://logos.test/arsenal-new.png",
+        None,
+    )
+    assert teams["Manchester City"].emoji_id == "5001"

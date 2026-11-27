@@ -1,7 +1,7 @@
 """Fon vazifalari: provayderdan ma'lumot olib, bazaga yozish va keshni yangilash.
 
 Worker har daqiqada tick() ni chaqiradi. API'ga so'rov faqat kerak bo'lganda ketadi:
-  - mavsum taqvimi — kuniga bir marta (futbol kuni almashganda);
+  - mavsum taqvimi — kuniga bir marta, ertalab soat 06:00 dan keyin;
   - bugungi o'yinlar holati — faqat belgilangan nuqtalarda (poll_due ga qarang).
 Bepul tarifda kuniga 100 ta so'rov bor, shuning uchun jadval ataylab siyrak.
 """
@@ -9,7 +9,7 @@ Bepul tarifda kuniga 100 ta so'rov bor, shuning uchun jadval ataylab siyrak.
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from datetime import UTC, datetime, timedelta, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -17,13 +17,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from golli.competitions import COMPETITIONS
 from golli.db.matches import has_unfinished, unfinished_kickoffs, upsert_matches
 from golli.providers.base import FootballProvider, ProviderError
-from golli.services.days import current_season, football_day
+from golli.services.days import current_season
 from golli.services.schedule import ScheduleCache
 
 logger = logging.getLogger(__name__)
 
 LAST_SEASON_SYNC_KEY = "golli:sync:season:last"
 
+# Mavsum taqvimi kuniga bir marta, shu soatdan keyin sinxronlanadi (bot vaqt mintaqasida).
+# Erta tongda o'yin bo'lmaydi, tungi o'yinlar natijasi va ertalabki xabar uchun taqvim
+# shu paytda yangilanadi.
+SEASON_SYNC_HOUR = 6
 # Mavsum sinxronizatsiyasi xato bersa, shuncha vaqtdan keyin qayta uriniladi.
 SEASON_RETRY_DELAY = timedelta(minutes=30)
 # Qarovsiz qolgan (tugashi qayd etilmagan) o'yinlar uchun navbatdan tashqari
@@ -43,6 +47,11 @@ ENDING_INTERVAL = timedelta(minutes=3)
 # Qo'shimcha vaqt/penaltilar yoki provayder kechikishi: sekinroq tekshiriladi.
 LATE_AFTER = timedelta(minutes=135)
 LATE_INTERVAL = timedelta(minutes=5)
+
+
+def sync_day(moment: datetime, tz: tzinfo) -> date:
+    """Mavsum sinxronizatsiyasi hisobidagi kun: SEASON_SYNC_HOUR da almashadi."""
+    return (moment.astimezone(tz) - timedelta(hours=SEASON_SYNC_HOUR)).date()
 
 
 def poll_due(now: datetime, kickoffs: Iterable[datetime], last_poll: datetime | None) -> bool:
@@ -109,7 +118,7 @@ class Syncer:
 
     async def _season_sync_due(self, now: datetime) -> bool:
         last = await self._last_season_sync()
-        if last is None or football_day(last, self._tz) != football_day(now, self._tz):
+        if last is None or sync_day(last, self._tz) != sync_day(now, self._tz):
             return True
         # Bugun sinxronlangan. Faqat qarovsiz qolgan o'yin bo'lsa qayta sinxronlanadi
         # (masalan, worker o'yin paytida o'chiq bo'lgan).

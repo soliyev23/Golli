@@ -14,8 +14,17 @@ import asyncpg
 import pytest
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.base import BaseSession
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.methods import SendMessage, TelegramMethod
+from aiogram.methods import (
+    AddStickerToSet,
+    CreateNewStickerSet,
+    DeleteStickerFromSet,
+    GetMe,
+    GetStickerSet,
+    SendMessage,
+    TelegramMethod,
+)
 from aiogram.types import (
     CallbackQuery,
     Chat,
@@ -23,6 +32,8 @@ from aiogram.types import (
     ChatMemberMember,
     ChatMemberUpdated,
     Message,
+    Sticker,
+    StickerSet,
     Update,
 )
 from aiogram.types import User as TgUser
@@ -33,6 +44,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from factories import BOT_USERNAME
 from golli.bot.app import create_dispatcher
 from golli.config import Settings
 from golli.i18n import I18n
@@ -51,14 +63,70 @@ class RecordingSession(BaseSession):
         self.requests: list[TelegramMethod] = []
         # chat_id -> xato yasovchi: shu chatga xabar yuborish Telegram xatosi bilan tugaydi.
         self.failures: dict[int, Callable[[TelegramMethod], Exception]] = {}
+        # So'rov turi -> xato yasovchi: shu turdagi har bir so'rov xato bilan tugaydi.
+        self.method_failures: dict[type, Callable[[TelegramMethod], Exception]] = {}
+        # Botning emoji to'plamlari: nom -> emojilar. Telegram kabi identifikator beradi.
+        self.sticker_sets: dict[str, list[Sticker]] = {}
+        self._stickers_made = 0
 
     async def close(self) -> None:
         pass
 
+    def add_sticker(self, set_name: str) -> Sticker:
+        """To'plamga yangi maxsus emoji qo'shadi (to'plam bo'lmasa, yaratadi)."""
+        self._stickers_made += 1
+        number = self._stickers_made
+        sticker = Sticker(
+            file_id=f"file-{number}",
+            file_unique_id=f"unique-{number}",
+            type="custom_emoji",
+            width=100,
+            height=100,
+            is_animated=False,
+            is_video=False,
+            set_name=set_name,
+            custom_emoji_id=str(5000 + number),
+        )
+        self.sticker_sets.setdefault(set_name, []).append(sticker)
+        return sticker
+
+    def _sticker_request(self, method):
+        if isinstance(method, CreateNewStickerSet):
+            if method.name in self.sticker_sets:
+                raise TelegramBadRequest(method=method, message="Bad Request: name is occupied")
+            for _ in method.stickers:
+                self.add_sticker(method.name)
+            return True
+        if isinstance(method, AddStickerToSet):
+            self.add_sticker(method.name)
+            return True
+        if isinstance(method, GetStickerSet):
+            if method.name not in self.sticker_sets:
+                raise TelegramBadRequest(method=method, message="Bad Request: STICKERSET_INVALID")
+            return StickerSet(
+                name=method.name,
+                title="test",
+                sticker_type="custom_emoji",
+                stickers=list(self.sticker_sets[method.name]),
+            )
+        # DeleteStickerFromSet. Haqiqiy Telegram'dagidek: oxirgi emojisi o'chirilgan to'plam
+        # yo'qolmaydi, bo'sh holda qoladi.
+        for name, stickers in self.sticker_sets.items():
+            self.sticker_sets[name] = [s for s in stickers if s.file_id != method.sticker]
+        return True
+
     async def make_request(self, bot, method, timeout=None):
         self.requests.append(method)
+        if type(method) in self.method_failures:
+            raise self.method_failures[type(method)](method)
         if isinstance(method, SendMessage) and method.chat_id in self.failures:
             raise self.failures[method.chat_id](method)
+        if isinstance(method, GetMe):
+            return TgUser(id=BOT_ID, is_bot=True, first_name="Golli", username=BOT_USERNAME)
+        if isinstance(
+            method, CreateNewStickerSet | AddStickerToSet | GetStickerSet | DeleteStickerFromSet
+        ):
+            return self._sticker_request(method)
         if isinstance(method, SendMessage):
             return Message(
                 message_id=len(self.requests),

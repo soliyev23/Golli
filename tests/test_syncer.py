@@ -48,7 +48,7 @@ async def test_first_tick_syncs_whole_season_and_fills_cache(syncer, provider, s
     assert await schedule.get_match_days(at(28, 10)) == [SATURDAY]
 
 
-async def test_season_is_synced_once_per_football_day(syncer, provider):
+async def test_season_is_synced_once_a_day_in_the_early_morning(syncer, provider):
     await syncer.tick(at(28, 10))
     provider.calls.clear()
 
@@ -56,7 +56,7 @@ async def test_season_is_synced_once_per_football_day(syncer, provider):
     await syncer.tick(at(29, 5, 59))
     assert provider.calls == []
 
-    # 06:00 da yangi futbol kuni boshlanadi.
+    # Yarim tunda emas, ertalab 06:00 dan keyin: bu paytda o'yin bo'lmaydi.
     await syncer.tick(at(29, 6, 1))
     assert provider.calls == SEASON_CALLS
 
@@ -189,14 +189,16 @@ async def test_failed_poll_is_not_repeated_every_minute(syncer, provider):
     assert len(day_calls(provider)) == 1
 
 
-async def test_cache_window_moves_at_day_change_even_if_provider_is_down(syncer, provider, redis):
+async def test_cache_window_moves_at_midnight_without_the_provider(syncer, provider, redis):
     await syncer.tick(at(28, 10))
     await redis.delete(MATCH_DAYS_KEY)
+    provider.calls.clear()
 
     provider.fail = True
-    await syncer.tick(at(29, 6, 1))
+    await syncer.tick(at(29, 0, 1))
 
     assert await redis.exists(MATCH_DAYS_KEY)
+    assert provider.calls == []
 
 
 # --- poll_due

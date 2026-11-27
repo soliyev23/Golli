@@ -53,10 +53,8 @@ def _active_fans():
     return select(Favorite.user_id).join(User, User.id == Favorite.user_id).where(User.is_active)
 
 
-async def enqueue_morning(
-    session: AsyncSession, day: date, now: datetime, day_end: datetime
-) -> int:
-    """Sevimli klubi shu futbol kunida hali o'ynamagan muxlislarga bittadan xabar."""
+async def enqueue_morning(session: AsyncSession, day: date, now: datetime, until: datetime) -> int:
+    """Sevimli klubi `until` gacha o'ynaydigan muxlislarga `day` kuni uchun bittadan xabar."""
     fans = (
         _active_fans()
         .join(
@@ -66,7 +64,7 @@ async def enqueue_morning(
         .where(
             Match.status == MatchStatus.SCHEDULED.value,
             Match.kickoff_at > now,
-            Match.kickoff_at < day_end,
+            Match.kickoff_at < until,
         )
         .distinct()
     )

@@ -19,6 +19,7 @@ from golli.config import Settings
 from golli.db.session import create_engine, create_session_factory
 from golli.i18n import I18n
 from golli.providers.highlightly import HighlightlyProvider
+from golli.services.club_emoji import ClubEmojiSyncer
 from golli.services.reminders import ReminderPlanner, Sender
 from golli.services.schedule import ScheduleCache
 from golli.services.sync import Syncer
@@ -52,13 +53,15 @@ async def main() -> None:
     # Faqat xabar yuborish uchun; yangilanishlarni bot jarayoni qabul qiladi.
     bot = Bot(token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
+    schedule = ScheduleCache(redis, session_factory, settings.tz)
     syncer = Syncer(
         provider=provider,
         session_factory=session_factory,
-        schedule=ScheduleCache(redis, session_factory, settings.tz),
+        schedule=schedule,
         redis=redis,
         tz=settings.tz,
     )
+    club_emoji = ClubEmojiSyncer(bot, session_factory, schedule, settings.emoji_owner_id)
     planner = ReminderPlanner(session_factory, redis, settings.tz)
     sender = Sender(bot, session_factory, I18n(settings.default_locale), TeamNames(), settings.tz)
 
@@ -75,6 +78,10 @@ async def main() -> None:
             # Avval ma'lumot yangilanadi, keyin shu ma'lumot bo'yicha eslatmalar rejalanadi.
             await syncer.tick(now)
             try:
+                await club_emoji.tick(now)
+            except Exception:
+                logger.exception("Klub emojilari: kutilmagan xato")
+            try:
                 await planner.plan(now)
             except Exception:
                 logger.exception("Eslatmalarni rejalash: kutilmagan xato")
@@ -84,6 +91,7 @@ async def main() -> None:
     finally:
         stop.set()
         await sending
+        await club_emoji.aclose()
         await bot.session.close()
         await provider.aclose()
         await redis.aclose()

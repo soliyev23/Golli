@@ -67,7 +67,7 @@ async def upsert_matches(
     for external_id, data in teams.items():
         internal_id = team_ids.get(external_id)
         if internal_id is None:
-            team = Team(name=data.name)
+            team = Team(name=data.name, logo_url=data.logo_url)
             session.add(team)
             await session.flush()
             session.add(
@@ -77,8 +77,14 @@ async def upsert_matches(
             )
             team_ids[external_id] = team.id
             result.teams_created += 1
-        elif known_teams[internal_id].name != data.name:
-            known_teams[internal_id].name = data.name
+            continue
+        team = known_teams[internal_id]
+        if team.name != data.name:
+            team.name = data.name
+        if data.logo_url and team.logo_url != data.logo_url:
+            # Logotip o'zgargan: eski emoji eskirdi, yangisi keyingi aylanishda yaratiladi.
+            team.logo_url = data.logo_url
+            team.emoji_id = None
 
     # O'yinlar
     match_ids = await _load_refs(session, provider, "match", {item.external_id for item in items})

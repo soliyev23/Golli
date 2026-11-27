@@ -18,5 +18,9 @@ class TeamNames:
     def get(self, name: str, locale: str) -> str:
         return self._names.get(name, {}).get(locale, name)
 
+    def short(self, name: str, locale: str) -> str:
+        """O'yin qatorlari uchun qisqa nom; qisqasi yozilmagan bo'lsa — to'liq nom."""
+        return self._names.get(name, {}).get(f"{locale}_short") or self.get(name, locale)
+
     def __contains__(self, name: str) -> bool:
         return name in self._names

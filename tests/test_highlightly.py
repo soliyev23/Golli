@@ -65,6 +65,8 @@ def test_not_started_match():
     assert match.status is MatchStatus.SCHEDULED
     assert (match.home.external_id, match.home.name) == ("36526", "Arsenal")
     assert (match.away.external_id, match.away.name) == ("43334", "Manchester City")
+    assert match.home.logo_url == "https://highlightly.net/soccer/images/teams/36526.png"
+    assert match.away.logo_url == "https://highlightly.net/soccer/images/teams/43334.png"
     assert (match.home_score, match.away_score, match.minute) == (None, None, None)
 
 

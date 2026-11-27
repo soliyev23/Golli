@@ -15,10 +15,12 @@ from sqlalchemy.orm import aliased
 
 from golli.db.models import Match, Team
 from golli.providers.base import MatchStatus
-from golli.services.days import day_bounds, football_day
+from golli.services.days import day_bounds, local_date
 
-# Foydalanuvchi ko'ra oladigan kunlar: bugundan shuncha kun orqaga va oldinga.
-PAST_DAYS = 3
+# Keshda turadigan kunlar: bugundan shuncha kun orqaga va oldinga. "Yaqin o'yinlar" va
+# "Oxirgi o'yinlar" shu oynadan o'yin kunlarini qidiradi; oyna milliy terma jamoalar
+# tanaffusidek (taxminan ikki hafta o'yinsiz) oraliqni qoplashi kerak.
+PAST_DAYS = 14
 FUTURE_DAYS = 14
 # Nusxalar kamida kuniga bir marta qayta quriladi; TTL zaxira bilan olingan.
 TTL = timedelta(hours=36)
@@ -42,6 +44,9 @@ class DayMatch(BaseModel):
     away_score: int | None
     home_penalties: int | None
     away_penalties: int | None
+    # Klub logotipi — Telegram maxsus emojisi identifikatori (bo'lmasa None).
+    home_emoji: str | None = None
+    away_emoji: str | None = None
 
 
 _matches = TypeAdapter(list[DayMatch])
@@ -52,7 +57,7 @@ async def load_matches(session: AsyncSession, *conditions: ColumnElement[bool]) 
     """Shartlarga mos o'yinlar, klub nomlari bilan, boshlanish vaqti tartibida."""
     home, away = aliased(Team), aliased(Team)
     query = (
-        select(Match, home.name, away.name)
+        select(Match, home.name, away.name, home.emoji_id, away.emoji_id)
         .join(home, Match.home_team_id == home.id)
         .join(away, Match.away_team_id == away.id)
         .where(*conditions)
@@ -73,8 +78,12 @@ async def load_matches(session: AsyncSession, *conditions: ColumnElement[bool]) 
             away_score=match.away_score,
             home_penalties=match.home_penalties,
             away_penalties=match.away_penalties,
+            home_emoji=home_emoji,
+            away_emoji=away_emoji,
         )
-        for match, home_name, away_name in (await session.execute(query)).all()
+        for match, home_name, away_name, home_emoji, away_emoji in (
+            await session.execute(query)
+        ).all()
     ]
 
 
@@ -91,7 +100,7 @@ class ScheduleCache:
         self.tz = tz
 
     def today(self, now: datetime | None = None) -> date:
-        return football_day(now or datetime.now(UTC), self.tz)
+        return local_date(now or datetime.now(UTC), self.tz)
 
     def window(self, now: datetime | None = None) -> tuple[date, date]:
         today = self.today(now)
@@ -104,7 +113,7 @@ class ScheduleCache:
             first + timedelta(days=offset): [] for offset in range((last - first).days + 1)
         }
         for match in await self._load(day_bounds(first, self.tz)[0], day_bounds(last, self.tz)[1]):
-            by_day[football_day(match.kickoff_at, self.tz)].append(match)
+            by_day[local_date(match.kickoff_at, self.tz)].append(match)
 
         async with self._redis.pipeline(transaction=True) as pipe:
             for day, matches in by_day.items():

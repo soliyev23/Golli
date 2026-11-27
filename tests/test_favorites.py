@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 from aiogram.methods import AnswerCallbackQuery, EditMessageText
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from factories import match
 from golli.db.favorites import competition_teams, favorite_teams, toggle_favorite
@@ -209,6 +209,23 @@ async def test_tapping_a_club_selects_and_tapping_again_removes(chat, db, clubs)
     assert chat.requests[0].text == "❌ Olib tashlandi: Arsenal"
     assert keyboard_rows(last_edit(chat))[0] == ["Arsenal", "Everton"]
     assert await favorite_names(db, chat.user_id) == []
+
+
+async def test_club_logos_are_shown_on_buttons_and_in_the_chosen_list(chat, db, clubs):
+    async with db.begin() as session:
+        await session.execute(update(Team).where(Team.name == "Arsenal").values(emoji_id="5001"))
+    arsenal = await team_id(db, "Arsenal")
+
+    await chat.press(f"favt:epl:0:{arsenal}")
+
+    buttons = [button for row in last_edit(chat).reply_markup.inline_keyboard for button in row]
+    icons = {button.text: button.icon_custom_emoji_id for button in buttons}
+    assert icons["✅ Arsenal"] == "5001"
+    # Emojisi hali yaratilmagan klub tugmasi logotipsiz qoladi.
+    assert icons["Everton"] is None
+
+    [root] = await chat.send(ROOT_BUTTON)
+    assert '• <tg-emoji emoji-id="5001">⚽</tg-emoji> Arsenal' in root.text
 
 
 async def test_several_clubs_from_different_leagues(chat, db, clubs):

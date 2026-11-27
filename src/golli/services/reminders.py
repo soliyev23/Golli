@@ -1,7 +1,8 @@
 """Eslatmalar: rejalash (navbatga qo'yish) va yuborish.
 
 Uch turdagi xabar bor, hammasi foydalanuvchining sevimli klublari bo'yicha:
-  - ertalabki: o'yin kuni soat 07:00 da bitta xabar (bir nechta klub bo'lsa ham);
+  - ertalabki: soat 07:00 da bitta xabar (bir nechta klub bo'lsa ham) — shu kungi va
+    shu kechasi, ertasi 06:00 gacha boshlanadigan o'yinlar haqida;
   - o'yin oldidan: boshlanishiga 1 soat qolganda;
   - natija: o'yin tugagach (tunda ovozsiz).
 
@@ -15,7 +16,7 @@ import logging
 import time
 from collections import Counter
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 
 from aiogram import Bot
 from aiogram.exceptions import (
@@ -47,7 +48,7 @@ from golli.db.notifications import (
 )
 from golli.i18n import I18n
 from golli.providers.base import MatchStatus
-from golli.services.days import day_bounds, football_day
+from golli.services.days import day_bounds, local_date
 from golli.services.schedule import DayMatch, load_matches
 from golli.services.team_names import TeamNames
 
@@ -59,6 +60,10 @@ logger = logging.getLogger(__name__)
 # MORNING_DEADLINE_HOUR gacha yuboradi; undan keyin "ertalabki" xabar ma'nosini yo'qotadi.
 MORNING_HOUR = 7
 MORNING_DEADLINE_HOUR = 12
+# Ertalabki xabar ertasi kuni shu soatgacha boshlanadigan o'yinlarni ham qamraydi:
+# yarim tundan keyingi o'yin o'z sanasining ertalabigacha tugab bo'ladi, shuning uchun
+# u haqda bir kun oldin ertalab xabar beriladi (ro'yxatda o'z sanasi bilan ko'rsatiladi).
+NIGHT_END_HOUR = 6
 PRE_MATCH_LEAD = timedelta(hours=1)
 # Boshlanganiga shundan ko'p vaqt o'tgan o'yin natijasi yuborilmaydi (eskirgan xabar).
 RESULT_MAX_AGE = timedelta(hours=6)
@@ -76,6 +81,11 @@ RETRY_DELAY = timedelta(seconds=30)
 # Shu oraliqda (bot vaqt mintaqasida) natija xabari ovozsiz yuboriladi.
 QUIET_FROM_HOUR = 23
 QUIET_UNTIL_HOUR = 8
+
+
+def morning_horizon(day: date, tz: tzinfo) -> datetime:
+    """`day` kungi ertalabki xabar shu paytgacha boshlanadigan o'yinlarni qamraydi."""
+    return day_bounds(day, tz)[1] + timedelta(hours=NIGHT_END_HOUR)
 
 
 class ReminderPlanner:
@@ -98,12 +108,12 @@ class ReminderPlanner:
         local = now.astimezone(self._tz)
         if not MORNING_HOUR <= local.hour < MORNING_DEADLINE_HOUR:
             return
-        day = football_day(now, self._tz)
+        day = local_date(now, self._tz)
         last = await self._redis.get(LAST_MORNING_KEY)
         if last is not None and last.decode() == day.isoformat():
             return
         async with self._session_factory.begin() as session:
-            count = await enqueue_morning(session, day, now, day_bounds(day, self._tz)[1])
+            count = await enqueue_morning(session, day, now, morning_horizon(day, self._tz))
         await self._redis.set(LAST_MORNING_KEY, day.isoformat())
         logger.info("Ertalabki xabar (%s): %s ta foydalanuvchiga navbatga qo'yildi", day, count)
 
@@ -214,16 +224,16 @@ class Sender:
                     text = render_result(match, t, self._names)
                     silent = quiet
             elif notification.kind == KIND_MORNING:
-                todays = await self._favorite_matches_today(session, notification, now)
-                if todays:
-                    text = render_morning(notification.day, todays, now, t, self._names, self._tz)
+                coming = await self._favorite_matches_ahead(session, notification, now)
+                if coming:
+                    text = render_morning(notification.day, coming, now, t, self._names, self._tz)
             prepared.append((notification, text, silent))
         return prepared
 
-    async def _favorite_matches_today(
+    async def _favorite_matches_ahead(
         self, session: AsyncSession, notification: Notification, now: datetime
     ) -> list[DayMatch]:
-        if notification.day != football_day(now, self._tz):
+        if notification.day != local_date(now, self._tz):
             return []
         team_ids = await favorite_team_ids(session, notification.user_id)
         return await load_matches(
@@ -231,7 +241,7 @@ class Sender:
             or_(Match.home_team_id.in_(team_ids), Match.away_team_id.in_(team_ids)),
             Match.status == MatchStatus.SCHEDULED.value,
             Match.kickoff_at > now,
-            Match.kickoff_at < day_bounds(notification.day, self._tz)[1],
+            Match.kickoff_at < morning_horizon(notification.day, self._tz),
         )
 
     async def _deliver(

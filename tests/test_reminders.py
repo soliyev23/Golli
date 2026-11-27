@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from aiogram.exceptions import TelegramForbiddenError, TelegramNetworkError, TelegramRetryAfter
 from aiogram.methods import SendMessage
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from factories import FakeProvider, match
 from golli.db.favorites import toggle_favorite
@@ -63,7 +63,7 @@ def sender(bot, db, i18n, names, settings) -> Sender:
 
 @pytest.fixture
 async def weekend(db) -> None:
-    """Shanba: Arsenal — Man City 20:00, Real — Barsa tunda 01:00. Yakshanba: Liverpool."""
+    """Shanba: Arsenal — Man City 20:00. Yakshanba: Real — Barsa tunda 01:00, Liverpool 19:00."""
     await store(
         db,
         match("e1", at(28, 20), "Arsenal", "Manchester City"),
@@ -77,8 +77,8 @@ async def weekend(db) -> None:
 
 async def test_morning_reminder_goes_to_fans_of_todays_teams(db, planner, weekend):
     await add_user(db, 1, "Arsenal")
-    await add_user(db, 2, "Barcelona")  # o'yini yarim tundan keyin — baribir bugungi ro'yxatda
-    await add_user(db, 3, "Everton")  # ertaga o'ynaydi
+    await add_user(db, 2, "Barcelona")  # o'yini shu kechasi 01:00 da – ertalab undan oldin keladi
+    await add_user(db, 3, "Everton")  # ertaga kechqurun o'ynaydi
     await add_user(db, 4, "Arsenal", active=False)  # botni bloklagan
     await add_user(db, 5)  # sevimli klubi yo'q
 
@@ -204,12 +204,12 @@ async def test_pre_match_message(db, planner, sender, bot, weekend):
     assert messages[1].text.split("\n") == [
         "⏰ <b>O'yinga 1 soat qoldi</b>",
         "",
-        "<b>Arsenal — Manchester Siti</b>",
+        "<b>Arsenal – Man Siti</b>",
         messages[1].text.split("\n")[3],
     ]
     assert messages[1].text.endswith(" APL · 20:00")
     assert messages[2].text.startswith(
-        "⏰ <b>До матча остался 1 час</b>\n\n<b>Арсенал — Манчестер Сити</b>"
+        "⏰ <b>До матча остался 1 час</b>\n\n<b>Арсенал – Ман Сити</b>"
     )
     assert not messages[1].disable_notification
 
@@ -272,23 +272,95 @@ async def test_morning_message_lists_all_favourite_matches(db, planner, sender, 
 
     await sender.process_batch(at(28, 7, 0))
 
+    # Tungi o'yin o'z sanasi ostida; ertaga kechqurungi o'yin (Everton) bu xabarga kirmaydi.
     [message] = sent_messages(bot)
     assert message.text == "\n".join(
         [
-            "☀️ <b>Bugun sevimli klubingiz o'ynaydi</b>",
+            "☀️ <b>Sevimli klubingiz o'ynaydi</b>",
+            "",
+            "⚽ <b>Bugun, 28-noyabr, shanba</b>",
             "",
             f"<b>{i18n.translate('uz', 'competition-epl')}</b>",
-            "20:00  Arsenal — Manchester Siti",
+            "20:00 Arsenal – Man Siti",
+            "",
+            "⚽ <b>Ertaga, 29-noyabr, yakshanba</b>",
             "",
             "<b>🇪🇸 La Liga</b>",
-            "🌙 01:00  Real Madrid — Barselona",
-            "",
-            "🌙 Yarim tundan keyin (29-noyabr)",
+            "01:00 Real Madrid – Barselona",
             "",
             "🕐 Vaqt — Toshkent bo'yicha",
         ]
     )
     assert not message.disable_notification
+
+
+@pytest.mark.parametrize(
+    ("lang", "lines"),
+    [
+        (
+            "uz",
+            ["☀️ <b>Sevimli klubingiz o'ynaydi</b>", "", "⚽ <b>Ertaga, 29-noyabr, yakshanba</b>"],
+        ),
+        (
+            "ru",
+            ["☀️ <b>Играет ваш любимый клуб</b>", "", "⚽ <b>Завтра, 29 ноября, воскресенье</b>"],
+        ),
+        (
+            "en",
+            [
+                "☀️ <b>Your favourite club is playing</b>",
+                "",
+                "⚽ <b>Tomorrow, Sunday, 29 November</b>",
+            ],
+        ),
+    ],
+)
+async def test_morning_message_about_night_match_names_its_date(
+    db, planner, sender, bot, weekend, lang, lines
+):
+    await add_user(db, 1, "Real Madrid", lang=lang)
+    await planner.plan(at(28, 7, 0))
+
+    await sender.process_batch(at(28, 7, 0))
+
+    [message] = sent_messages(bot)
+    assert message.text.split("\n")[:3] == lines
+    assert "01:00 " in message.text
+
+
+async def test_night_match_is_not_announced_again_next_morning(db, planner, sender, bot, weekend):
+    await add_user(db, 1, "Real Madrid")
+    await planner.plan(at(28, 7, 0))
+    await sender.process_batch(at(28, 7, 0))
+    await store(
+        db,
+        match(
+            "l1",
+            at(29, 1),
+            "Real Madrid",
+            "Barcelona",
+            competition="laliga",
+            status=MatchStatus.FINISHED,
+            score=(2, 1),
+        ),
+    )
+
+    # Yakshanba ertalab: o'yin o'z sanasida, lekin allaqachon tugagan.
+    await planner.plan(at(29, 7, 0))
+
+    assert [n.kind for n in await queue(db)].count("morning") == 1
+
+
+async def test_reminders_show_club_logos(db, planner, sender, bot, weekend):
+    async with db.begin() as session:
+        await session.execute(update(Team).where(Team.name == "Arsenal").values(emoji_id="5001"))
+    await add_user(db, 1, "Arsenal")
+    await planner.plan(at(28, 19, 0))
+
+    await sender.process_batch(at(28, 19, 0))
+
+    [message] = sent_messages(bot)
+    assert '<b><tg-emoji emoji-id="5001">⚽</tg-emoji> Arsenal – Man Siti</b>' in message.text
 
 
 async def test_blocked_user_is_deactivated(db, planner, sender, bot, weekend):
@@ -393,11 +465,11 @@ async def test_full_flow_from_provider_to_telegram(
 
     titles = [m.text.split("\n")[0] for m in sent_messages(bot)]
     assert titles == [
-        "☀️ <b>Bugun sevimli klubingiz o'ynaydi</b>",
+        "☀️ <b>Sevimli klubingiz o'ynaydi</b>",
         "⏰ <b>O'yinga 1 soat qoldi</b>",
         "🏁 <b>O'yin tugadi</b>",
     ]
-    assert "Arsenal <b>2:1</b> Manchester Siti" in sent_messages(bot)[-1].text
+    assert "Arsenal <b>2:1</b> Man Siti" in sent_messages(bot)[-1].text
     async with db() as session:
         stored = await session.scalar(select(Match))
     assert stored.pre_notified_at is not None and stored.result_notified_at is not None

@@ -1,5 +1,4 @@
-from datetime import UTC, date, datetime
-from typing import Any
+from datetime import UTC, date, datetime, timedelta
 
 from aiogram import Router
 from aiogram.exceptions import TelegramBadRequest
@@ -7,93 +6,102 @@ from aiogram.types import CallbackQuery, Message
 
 from golli.bot.callbacks import DayCallback, UpcomingCallback
 from golli.bot.filters import MenuButton
-from golli.bot.views import day_navigation, render_days, render_no_upcoming
+from golli.bot.keyboards import main_menu
+from golli.bot.views import is_live, render_days, render_no_recent, render_no_upcoming
 from golli.i18n import Translator
-from golli.services.schedule import ScheduleCache
+from golli.providers.base import MatchStatus
+from golli.services.schedule import DayMatch, ScheduleCache
 from golli.services.team_names import TeamNames
 
 router = Router(name="matches")
 
-# "Yaqin o'yinlar" bosilganda nechta o'yin kuni ko'rsatiladi.
+# Har bir ro'yxatda nechta o'yin kuni ko'rsatiladi; o'yinsiz kunlar tashlab ketiladi.
 UPCOMING_DAYS = 2
+RECENT_DAYS = 2
+# Kecha boshlangan o'yin shu vaqt ichida hali tugamagan bo'lsa, ro'yxat kechagi kundan boshlanadi.
+CARRY_OVER = timedelta(hours=4)
+# Hali natijasi yo'q o'yinlar: ular "Oxirgi o'yinlar"da emas, "Yaqin o'yinlar"da turadi.
+NOT_PLAYED_YET = (MatchStatus.SCHEDULED, MatchStatus.LIVE)
 
 
-async def _upcoming_view(
+async def _first_day(schedule: ScheduleCache, today: date, now: datetime) -> date:
+    """Odatda bugun. Yarim tundan o'tib ketgan o'yin davom etayotgan bo'lsa — kecha."""
+    yesterday = today - timedelta(days=1)
+    in_play = any(
+        is_live(match, now) and now - match.kickoff_at < CARRY_OVER
+        for match in await schedule.get_day(yesterday)
+    )
+    return yesterday if in_play else today
+
+
+async def upcoming_text(
     schedule: ScheduleCache, now: datetime, t: Translator, names: TeamNames
-) -> dict[str, Any]:
-    """Eng yaqin o'yin kuni (bugun o'yin bo'lsa — bugun) va undan keyingi o'yin kuni."""
+) -> str:
+    """ "Yaqin o'yinlar": eng yaqin o'yin kuni (bugun o'yin bo'lsa — bugun) va undan keyingisi."""
     today = schedule.today(now)
-    match_days = await schedule.get_match_days(now)
-    shown = [day for day in match_days if day >= today][:UPCOMING_DAYS]
+    first = await _first_day(schedule, today, now)
+    shown = [day for day in await schedule.get_match_days(now) if day >= first][:UPCOMING_DAYS]
     if not shown:
-        return {
-            "text": render_no_upcoming(t),
-            "reply_markup": day_navigation(today, today, match_days, t, back_to_upcoming=False),
-        }
+        return render_no_upcoming(t)
     days = [(day, await schedule.get_day(day)) for day in shown]
-    return {
-        "text": render_days(days, today=today, now=now, t=t, names=names, tz=schedule.tz),
-        "reply_markup": day_navigation(shown[0], shown[-1], match_days, t, back_to_upcoming=False),
-    }
+    return render_days(days, today=today, now=now, t=t, names=names, tz=schedule.tz)
 
 
-async def _day_view(
-    schedule: ScheduleCache, day: date, now: datetime, t: Translator, names: TeamNames
-) -> dict[str, Any]:
-    days = [(day, await schedule.get_day(day))]
-    return {
-        "text": render_days(
-            days, today=schedule.today(now), now=now, t=t, names=names, tz=schedule.tz
-        ),
-        "reply_markup": day_navigation(
-            day, day, await schedule.get_match_days(now), t, back_to_upcoming=True
-        ),
-    }
+async def recent_text(
+    schedule: ScheduleCache, now: datetime, t: Translator, names: TeamNames
+) -> str:
+    """ "Oxirgi o'yinlar": o'yin tugagan eng oxirgi kun va undan oldingisi, yangisi tepada.
+
+    Xuddi "Yaqin o'yinlar" qoidasi, faqat orqaga qarab: o'yinsiz kunlar tashlab ketiladi.
+    """
+    today = schedule.today(now)
+    past_days = [day for day in await schedule.get_match_days(now) if day <= today]
+    days: list[tuple[date, list[DayMatch]]] = []
+    for day in reversed(past_days):
+        matches = await schedule.get_day(day)
+        if any(match.status is MatchStatus.FINISHED for match in matches):
+            days.append((day, [m for m in matches if m.status not in NOT_PLAYED_YET]))
+        if len(days) == RECENT_DAYS:
+            break
+    if not days:
+        return render_no_recent(t)
+    return render_days(days, today=today, now=now, t=t, names=names, tz=schedule.tz)
 
 
-async def _edit(callback: CallbackQuery, view: dict[str, Any]) -> None:
-    await callback.answer()
-    if not isinstance(callback.message, Message):
-        return
-    try:
-        await callback.message.edit_text(**view)
-    except TelegramBadRequest as exc:
-        # Matn o'zgarmagan bo'lsa Telegram xato qaytaradi — bu holatda qiladigan ish yo'q.
-        if "message is not modified" not in str(exc):
-            raise
+# Javob bilan birga menyu ham yuboriladi: eski klaviaturali foydalanuvchida yangi tugmalar
+# shu tariqa paydo bo'ladi.
 
 
 @router.message(MenuButton("menu-matches"))
 async def show_upcoming(
     message: Message, t: Translator, schedule: ScheduleCache, names: TeamNames
 ) -> None:
-    await message.answer(**await _upcoming_view(schedule, datetime.now(UTC), t, names))
+    text = await upcoming_text(schedule, datetime.now(UTC), t, names)
+    await message.answer(text, reply_markup=main_menu(t))
 
 
+@router.message(MenuButton("menu-recent"))
+async def show_recent(
+    message: Message, t: Translator, schedule: ScheduleCache, names: TeamNames
+) -> None:
+    text = await recent_text(schedule, datetime.now(UTC), t, names)
+    await message.answer(text, reply_markup=main_menu(t))
+
+
+# Avval ro'yxat ostida kundan kunga o'tish tugmalari bo'lgan. Eski xabarda qolgan shunday
+# tugma bosilsa, xabar hozirgi "Yaqin o'yinlar" ro'yxatiga almashtiriladi va tugmalari olinadi.
+@router.callback_query(DayCallback.filter())
 @router.callback_query(UpcomingCallback.filter())
-async def back_to_upcoming(
+async def retire_old_buttons(
     callback: CallbackQuery, t: Translator, schedule: ScheduleCache, names: TeamNames
 ) -> None:
-    await _edit(callback, await _upcoming_view(schedule, datetime.now(UTC), t, names))
-
-
-@router.callback_query(DayCallback.filter())
-async def show_day(
-    callback: CallbackQuery,
-    callback_data: DayCallback,
-    t: Translator,
-    schedule: ScheduleCache,
-    names: TeamNames,
-) -> None:
-    now = datetime.now(UTC)
-    first, last = schedule.window(now)
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    text = await upcoming_text(schedule, datetime.now(UTC), t, names)
     try:
-        day = date.fromisoformat(callback_data.day)
-    except ValueError:
-        day = None
-    if day is None or not first <= day <= last:
-        # Eski xabardagi tugma: u ko'rsatgan kun endi oynadan tashqarida.
-        view = await _upcoming_view(schedule, now, t, names)
-    else:
-        view = await _day_view(schedule, day, now, t, names)
-    await _edit(callback, view)
+        await callback.message.edit_text(text, reply_markup=None)
+    except TelegramBadRequest as exc:
+        # Matn o'zgarmagan bo'lsa Telegram xato qaytaradi — bu holatda qiladigan ish yo'q.
+        if "message is not modified" not in str(exc):
+            raise

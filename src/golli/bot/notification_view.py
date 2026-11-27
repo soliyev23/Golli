@@ -1,11 +1,12 @@
 """Eslatma xabarlarining matni."""
 
 from datetime import date, datetime, tzinfo
-from html import escape
+from itertools import groupby
 from math import ceil
 
-from golli.bot.views import match_groups, score_line
+from golli.bot.views import VERSUS, club_label, render_days, score_line
 from golli.i18n import Translator
+from golli.services.days import local_date
 from golli.services.schedule import DayMatch
 from golli.services.team_names import TeamNames
 
@@ -21,14 +22,14 @@ def render_pre_match(
         title = t("notify-pre-hour")
     else:
         title = t("notify-pre-minutes", minutes=minutes)
-    home = escape(names.get(match.home, t.locale), quote=False)
-    away = escape(names.get(match.away, t.locale), quote=False)
+    home = club_label(match.home, match.home_emoji, t, names, short=True)
+    away = club_label(match.away, match.away_emoji, t, names, short=True)
     kickoff = match.kickoff_at.astimezone(tz).strftime("%H:%M")
     return "\n".join(
         [
             title,
             "",
-            f"<b>{home} — {away}</b>",
+            f"<b>{home}{VERSUS}{away}</b>",
             f"{t(f'competition-{match.competition}')} · {kickoff}",
         ]
     )
@@ -46,19 +47,20 @@ def render_result(match: DayMatch, t: Translator, names: TeamNames) -> str:
 
 
 def render_morning(
-    day: date,
+    today: date,
     matches: list[DayMatch],
     now: datetime,
     t: Translator,
     names: TeamNames,
     tz: tzinfo,
 ) -> str:
-    """Foydalanuvchining sevimli klublari ishtirokidagi bugungi o'yinlar."""
-    return "\n".join(
-        [
-            t("notify-morning-title"),
-            *match_groups(day, matches, now, t, names, tz),
-            "",
-            t("matches-footer"),
-        ]
-    )
+    """Sevimli klublarning yaqin o'yinlari (boshlanish tartibida), har biri o'z sanasi ostida.
+
+    Yarim tundan keyin boshlanadigan o'yin ertangi sana sarlavhasi bilan chiqadi.
+    """
+    days = [
+        (day, list(group))
+        for day, group in groupby(matches, key=lambda match: local_date(match.kickoff_at, tz))
+    ]
+    schedule = render_days(days, today=today, now=now, t=t, names=names, tz=tz)
+    return f"{t('notify-morning-title')}\n\n{schedule}"

@@ -1,11 +1,13 @@
+import tomllib
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from golli.bot.views import day_navigation, render_days, render_no_upcoming
+from golli.bot.views import render_days, render_no_recent, render_no_upcoming
 from golli.providers.base import MatchStatus
 from golli.services.schedule import DayMatch
+from golli.services.team_names import TEAM_NAMES_FILE
 
 TASHKENT = ZoneInfo("Asia/Tashkent")
 TODAY = date(2026, 11, 28)  # shanba
@@ -49,7 +51,7 @@ MATCHES = [
     day_match("epl", at(28, 20, 30), "Fulham", "Bournemouth"),
     day_match("ucl", at(28, 22, 45), "Club Brugge KV", "Liverpool"),
     day_match("laliga", at(28, 23), "Getafe", "Valencia", MatchStatus.POSTPONED),
-    day_match("laliga", at(29, 1), "Real Madrid", "Barcelona"),
+    day_match("laliga", at(28, 23, 30), "Real Madrid", "Barcelona"),
 ]
 
 
@@ -72,18 +74,16 @@ def test_full_day_in_uzbek(i18n, names):
             "⚽ <b>Bugun, 28-noyabr, shanba</b>",
             "",
             "<b>🏆 Chempionlar ligasi</b>",
-            "22:45  Bryugge — Liverpul",
+            "22:45 Bryugge – Liverpul",
             "",
             f"<b>{t('competition-epl')}</b>",
-            "✅ Everton <b>0:2</b> Liverpul",
-            "🔴 Arsenal <b>1:0</b> Manchester Siti",
-            "🔴 Fulxem — Bornmut",
+            "Everton <b>0:2</b> Liverpul",
+            "🔴 Arsenal <b>1:0</b> Man Siti",
+            "🔴 Fulxem – Bornmut",
             "",
             "<b>🇪🇸 La Liga</b>",
-            "⏸ Xetafe — Valensiya · ko'chirilgan",
-            "🌙 01:00  Real Madrid — Barselona",
-            "",
-            "🌙 Yarim tundan keyin (29-noyabr)",
+            "⏸ Xetafe – Valensiya · ko'chirilgan",
+            "23:30 Real Madrid – Barselona",
             "",
             "🕐 Vaqt — Toshkent bo'yicha",
             "🔴 O'yin ketmoqda — hisob kechikib yangilanadi",
@@ -94,8 +94,8 @@ def test_full_day_in_uzbek(i18n, names):
 @pytest.mark.parametrize(
     ("locale", "title", "line"),
     [
-        ("ru", "⚽ <b>Сегодня, 28 ноября, суббота</b>", "✅ Эвертон <b>0:2</b> Ливерпуль"),
-        ("en", "⚽ <b>Today, Saturday, 28 November</b>", "✅ Everton <b>0:2</b> Liverpool"),
+        ("ru", "⚽ <b>Сегодня, 28 ноября, суббота</b>", "Эвертон <b>0:2</b> Ливерпуль"),
+        ("en", "⚽ <b>Today, Saturday, 28 November</b>", "Everton <b>0:2</b> Liverpool"),
     ],
 )
 def test_other_languages(i18n, names, locale, title, line):
@@ -126,33 +126,25 @@ def test_no_live_note_when_nothing_is_in_play(i18n, names):
 
     text = render(upcoming, i18n, names)
 
-    assert "23:00  Arsenal — Manchester Siti" in text
+    assert "23:00 Arsenal – Man Siti" in text
     assert text.endswith("🕐 Vaqt — Toshkent bo'yicha")
 
 
-@pytest.mark.parametrize(
-    ("locale", "note"),
-    [
-        ("uz", "🌙 Yarim tundan keyin (29-noyabr)"),
-        ("ru", "🌙 После полуночи (29 ноября)"),
-        ("en", "🌙 After midnight (29 November)"),
-    ],
-)
-def test_after_midnight_kickoff_is_marked_with_next_date(i18n, names, locale, note):
+def test_after_midnight_kickoff_is_an_ordinary_match_of_its_own_date(i18n, names):
     night = [day_match("laliga", at(29, 1), "Real Madrid", "Barcelona")]
 
-    lines = render(night, i18n, names, locale).split("\n")
+    text = render(night, i18n, names, day=date(2026, 11, 29))
 
-    assert lines[3].startswith("🌙 01:00  ")
-    assert lines[5] == note
-
-
-def test_no_night_note_once_the_night_match_has_started(i18n, names):
-    night = [day_match("laliga", at(29, 1), "Real Madrid", "Barcelona", MatchStatus.LIVE, (0, 0))]
-
-    text = render(night, i18n, names, now=at(29, 1, 30))
-
-    assert "🌙" not in text
+    assert text == "\n".join(
+        [
+            "⚽ <b>Ertaga, 29-noyabr, yakshanba</b>",
+            "",
+            "<b>🇪🇸 La Liga</b>",
+            "01:00 Real Madrid – Barselona",
+            "",
+            "🕐 Vaqt — Toshkent bo'yicha",
+        ]
+    )
 
 
 def test_penalty_shootout_is_shown(i18n, names):
@@ -160,14 +152,14 @@ def test_penalty_shootout_is_shown(i18n, names):
         day_match("ucl", at(28, 1), "Real Madrid", "Arsenal", MatchStatus.FINISHED, (1, 1), (4, 3))
     ]
 
-    assert "✅ Real Madrid <b>1:1</b> Arsenal (pen. 4:3)" in render(final, i18n, names)
+    assert "Real Madrid <b>1:1</b> Arsenal (pen. 4:3)" in render(final, i18n, names)
 
 
 @pytest.mark.parametrize(
     ("status", "line"),
     [
-        (MatchStatus.SUSPENDED, "⏸ Arsenal — Chelsi · to'xtatilgan"),
-        (MatchStatus.CANCELLED, "❌ Arsenal — Chelsi · bekor qilingan"),
+        (MatchStatus.SUSPENDED, "⏸ Arsenal – Chelsi · to'xtatilgan"),
+        (MatchStatus.CANCELLED, "❌ Arsenal – Chelsi · bekor qilingan"),
     ],
 )
 def test_interrupted_matches(i18n, names, status, line):
@@ -177,18 +169,18 @@ def test_interrupted_matches(i18n, names, status, line):
 def test_unknown_team_keeps_provider_name_and_is_escaped(i18n, names):
     text = render([day_match("ucl", at(28, 23), "Tom & Jerry <FC>", "Viking")], i18n, names)
 
-    assert "23:00  Tom &amp; Jerry &lt;FC&gt; — Viking" in text
+    assert "23:00 Tom &amp; Jerry &lt;FC&gt; – Viking" in text
 
 
 # --- Bir nechta kun bitta xabarda
 
 
 def test_two_days_in_one_message(i18n, names):
-    saturday = [
-        day_match("epl", at(28, 22, 30), "Ipswich", "Aston Villa"),
+    saturday = [day_match("epl", at(28, 22, 30), "Ipswich", "Aston Villa")]
+    sunday = [
         day_match("laliga", at(29, 1), "Real Madrid", "Alavés"),
+        day_match("epl", at(29, 21, 30), "Arsenal", "Manchester City"),
     ]
-    sunday = [day_match("epl", at(29, 21, 30), "Arsenal", "Manchester City")]
 
     text = render_days(
         [(TODAY, saturday), (TODAY + timedelta(days=1), sunday)],
@@ -205,17 +197,15 @@ def test_two_days_in_one_message(i18n, names):
             "⚽ <b>Bugun, 28-noyabr, shanba</b>",
             "",
             f"<b>{epl}</b>",
-            "22:30  Ipsvich — Aston Villa",
-            "",
-            "<b>🇪🇸 La Liga</b>",
-            "🌙 01:00  Real Madrid — Alaves",
-            "",
-            "🌙 Yarim tundan keyin (29-noyabr)",
+            "22:30 Ipsvich – Aston Villa",
             "",
             "⚽ <b>Ertaga, 29-noyabr, yakshanba</b>",
             "",
             f"<b>{epl}</b>",
-            "21:30  Arsenal — Manchester Siti",
+            "21:30 Arsenal – Man Siti",
+            "",
+            "<b>🇪🇸 La Liga</b>",
+            "01:00 Real Madrid – Alaves",
             "",
             "🕐 Vaqt — Toshkent bo'yicha",
         ]
@@ -228,60 +218,99 @@ def test_no_upcoming_matches_message(i18n):
     )
 
 
-# --- Kunlar orasida o'tish
-
-MATCH_DAYS = [date(2026, 11, 26), TODAY, date(2026, 11, 29), date(2026, 12, 5)]
-
-
-def buttons(markup) -> list[tuple[str, str]]:
-    return [(button.text, button.callback_data) for row in markup.inline_keyboard for button in row]
-
-
-def navigation(first, last, i18n, *, back_to_upcoming, match_days=MATCH_DAYS):
-    return day_navigation(
-        first, last, match_days, i18n.translator("uz"), back_to_upcoming=back_to_upcoming
+def test_no_recent_matches_message(i18n):
+    assert render_no_recent(i18n.translator("uz")) == (
+        "<b>🏁 Oxirgi o'yinlar</b>\n\nSo'nggi kunlarda o'yin bo'lmadi."
     )
 
 
-def test_navigation_under_upcoming_list_goes_around_shown_days(i18n):
-    # Ro'yxatda 28- va 29-noyabr ko'rsatilgan: tugmalar ulardan oldingi va keyingi o'yin kuniga.
-    markup = navigation(TODAY, date(2026, 11, 29), i18n, back_to_upcoming=False)
+def test_time_zone_note_only_when_a_kickoff_time_is_shown(i18n, names):
+    results = [
+        day_match("epl", at(28, 17, 30), "Everton", "Liverpool", MatchStatus.FINISHED, (0, 2)),
+        day_match("laliga", at(28, 18), "Getafe", "Valencia", MatchStatus.POSTPONED),
+    ]
 
-    assert buttons(markup) == [
-        ("◀️ Pay 26.11", "day:2026-11-26"),
-        ("Shan 05.12 ▶️", "day:2026-12-05"),
+    # Faqat natijalar: soat ko'rsatilmagan, demak vaqt mintaqasi haqida izoh ham yo'q.
+    assert render(results, i18n, names).split("\n")[-1] == "⏸ Xetafe – Valensiya · ko'chirilgan"
+
+    in_play = [day_match("epl", at(28, 20), "Arsenal", "Manchester City", MatchStatus.LIVE, (1, 0))]
+    assert render(in_play, i18n, names).split("\n")[-2:] == [
+        "",
+        "🔴 O'yin ketmoqda — hisob kechikib yangilanadi",
     ]
 
 
-def test_navigation_under_single_day_offers_way_back(i18n):
-    day = date(2026, 11, 29)
-    markup = navigation(day, day, i18n, back_to_upcoming=True)
+# --- Klub logotiplari (maxsus emoji)
 
-    assert buttons(markup) == [
-        ("◀️ Shan 28.11", "day:2026-11-28"),
-        ("⚽ Yaqin o'yinlar", "upcoming"),
-        ("Shan 05.12 ▶️", "day:2026-12-05"),
+
+def logo(emoji_id: str) -> str:
+    return f'<tg-emoji emoji-id="{emoji_id}">⚽</tg-emoji>'
+
+
+def with_logos(match: DayMatch, home: str | None, away: str | None) -> DayMatch:
+    return match.model_copy(update={"home_emoji": home, "away_emoji": away})
+
+
+def test_club_logo_stands_before_the_club_name(i18n, names):
+    matches = [
+        with_logos(
+            day_match("epl", at(28, 17, 30), "Everton", "Liverpool", MatchStatus.FINISHED, (0, 2)),
+            "11",
+            "12",
+        ),
+        with_logos(
+            day_match("epl", at(28, 20), "Arsenal", "Manchester City", MatchStatus.LIVE, (1, 0)),
+            "13",
+            "14",
+        ),
+        with_logos(day_match("laliga", at(28, 23), "Real Madrid", "Barcelona"), "15", "16"),
     ]
 
+    lines = render(matches, i18n, names).split("\n")
 
-def test_navigation_skips_days_without_matches(i18n):
-    # 27-noyabrda o'yin yo'q: undan orqaga 26-ga, oldinga 28-ga o'tiladi.
-    day = date(2026, 11, 27)
-    markup = navigation(day, day, i18n, back_to_upcoming=False)
-
-    assert [data for _, data in buttons(markup)] == ["day:2026-11-26", "day:2026-11-28"]
+    assert f"{logo('11')} Everton <b>0:2</b> {logo('12')} Liverpul" in lines
+    assert f"🔴 {logo('13')} Arsenal <b>1:0</b> {logo('14')} Man Siti" in lines
+    assert f"23:00 {logo('15')} Real Madrid – {logo('16')} Barselona" in lines
 
 
-def test_navigation_at_the_edges(i18n):
-    first, last = MATCH_DAYS[0], MATCH_DAYS[-1]
+def test_club_without_logo_is_shown_by_name_only(i18n, names):
+    # Emoji hali yaratilmagan klub: nomi o'zi qoladi, yonidagi klub logotipi bilan.
+    half = with_logos(day_match("laliga", at(28, 23), "Real Madrid", "Barcelona"), None, "16")
 
-    assert [
-        data for _, data in buttons(navigation(first, first, i18n, back_to_upcoming=False))
-    ] == ["day:2026-11-28"]
-    assert [data for _, data in buttons(navigation(last, last, i18n, back_to_upcoming=False))] == [
-        "day:2026-11-29"
-    ]
+    assert f"23:00 Real Madrid – {logo('16')} Barselona" in render([half], i18n, names)
 
 
-def test_no_navigation_when_there_is_nowhere_to_go(i18n):
-    assert navigation(TODAY, TODAY, i18n, back_to_upcoming=False, match_days=[TODAY]) is None
+# --- Qisqa nomlar: o'yin qatori telefonda bitta satrga sig'ishi uchun
+
+
+@pytest.mark.parametrize(
+    ("locale", "line"),
+    [
+        ("uz", "23:00 MYU – Brentford"),
+        ("ru", "23:00 МЮ – Брентфорд"),
+        ("en", "23:00 Man Utd – Brentford"),
+    ],
+)
+def test_long_club_names_are_shortened_in_match_lines(i18n, names, locale, line):
+    long = [day_match("epl", at(28, 23), "Manchester United", "Brentford")]
+
+    assert line in render(long, i18n, names, locale).split("\n")
+
+
+def test_short_name_falls_back_to_full_name(names):
+    assert names.short("Manchester United", "uz") == "MYU"
+    assert names.get("Manchester United", "uz") == "Manchester Yunayted"
+    # Qisqasi yozilmagan klub va tarjimasi umuman yo'q klub.
+    assert names.short("Arsenal", "ru") == "Арсенал"
+    assert names.short("Viking", "uz") == "Viking"
+
+
+def test_short_names_are_really_shorter():
+    with TEAM_NAMES_FILE.open("rb") as file:
+        clubs = tomllib.load(file)
+
+    for name, fields in clubs.items():
+        for key, short in fields.items():
+            if key.endswith("_short"):
+                full = fields.get(key.removesuffix("_short"), name)
+                assert len(short) < len(full), (name, key)

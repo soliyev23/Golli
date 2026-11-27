@@ -1,5 +1,7 @@
 # Klub nomlarining tarjimalari. Kalit — provayder (Highlightly) bergan nom.
 # "en" faqat provayder nomi noqulay bo'lganda yoziladi; bo'lmasa provayder nomi ishlatiladi.
+# "<til>_short" — o'yin qatorlarida ishlatiladigan qisqa nom: uzun nomli klub tufayli qator
+# telefonda ikkiga bo'linib ketmasligi uchun. Yozilmagan bo'lsa, to'liq nom ishlatiladi.
 
 # --- Angliya Premer-ligasi
 
@@ -10,6 +12,7 @@ ru = "Арсенал"
 ["Aston Villa"]
 uz = "Aston Villa"
 ru = "Астон Вилла"
+ru_short = "А. Вилла"
 
 ["Bournemouth"]
 uz = "Bornmut"
@@ -34,6 +37,9 @@ ru = "Ковентри"
 ["Crystal Palace"]
 uz = "Kristal Pelas"
 ru = "Кристал Пэлас"
+uz_short = "Kr. Pelas"
+ru_short = "Кр. Пэлас"
+en_short = "Palace"
 
 ["Everton"]
 uz = "Everton"
@@ -62,10 +68,16 @@ ru = "Ливерпуль"
 ["Manchester City"]
 uz = "Manchester Siti"
 ru = "Манчестер Сити"
+uz_short = "Man Siti"
+ru_short = "Ман Сити"
+en_short = "Man City"
 
 ["Manchester United"]
 uz = "Manchester Yunayted"
 ru = "Манчестер Юнайтед"
+uz_short = "MYU"
+ru_short = "МЮ"
+en_short = "Man Utd"
 
 ["Newcastle United"]
 uz = "Nyukasl"
@@ -75,6 +87,9 @@ en = "Newcastle"
 ["Nottingham Forest"]
 uz = "Nottingem Forest"
 ru = "Ноттингем Форест"
+uz_short = "Nottingem"
+ru_short = "Ноттингем"
+en_short = "Forest"
 
 ["Sunderland"]
 uz = "Sanderlend"
@@ -93,10 +108,16 @@ ru = "Алавес"
 ["Athletic Club"]
 uz = "Atletik Bilbao"
 ru = "Атлетик Бильбао"
+uz_short = "Atletik"
+ru_short = "Атлетик"
+en_short = "Athletic"
 
 ["Atlético Madrid"]
 uz = "Atletiko Madrid"
 ru = "Атлетико Мадрид"
+uz_short = "Atletiko"
+ru_short = "Атлетико"
+en_short = "Atlético"
 
 ["Barcelona"]
 uz = "Barselona"
@@ -111,6 +132,7 @@ en = "Celta Vigo"
 uz = "Deportivo"
 ru = "Депортиво"
 en = "Deportivo La Coruña"
+en_short = "Deportivo"
 
 ["Elche"]
 uz = "Elche"
@@ -140,10 +162,16 @@ ru = "Осасуна"
 ["Racing Santander"]
 uz = "Rasing Santander"
 ru = "Расинг Сантандер"
+uz_short = "Rasing"
+ru_short = "Расинг"
+en_short = "Racing"
 
 ["Rayo Vallecano"]
 uz = "Rayo Valyekano"
 ru = "Райо Вальекано"
+uz_short = "Rayo"
+ru_short = "Райо"
+en_short = "Rayo"
 
 ["Real Betis"]
 uz = "Betis"
@@ -152,10 +180,14 @@ ru = "Бетис"
 ["Real Madrid"]
 uz = "Real Madrid"
 ru = "Реал Мадрид"
+ru_short = "Реал"
 
 ["Real Sociedad"]
 uz = "Real Sosedad"
 ru = "Реал Сосьедад"
+uz_short = "Sosedad"
+ru_short = "Сосьедад"
+en_short = "Sociedad"
 
 ["Sevilla FC"]
 uz = "Sevilya"
@@ -185,6 +217,7 @@ en = "Roma"
 ["Bayern Munich"]
 uz = "Bavariya"
 ru = "Бавария"
+en_short = "Bayern"
 
 ["Bodø/Glimt"]
 uz = "Budyo-Glimt"
@@ -193,6 +226,9 @@ ru = "Будё-Глимт"
 ["Borussia Dortmund"]
 uz = "Borussiya Dortmund"
 ru = "Боруссия Дортмунд"
+uz_short = "Dortmund"
+ru_short = "Дортмунд"
+en_short = "Dortmund"
 
 ["Club Brugge KV"]
 uz = "Bryugge"
@@ -251,10 +287,12 @@ en = "PSV"
 uz = "PSJ"
 ru = "ПСЖ"
 en = "Paris Saint-Germain"
+en_short = "PSG"
 
 ["RB Leipzig"]
 uz = "Leypsig"
 ru = "РБ Лейпциг"
+ru_short = "Лейпциг"
 
 ["Sabah FA"]
 uz = "Sabah"
@@ -264,15 +302,20 @@ en = "Sabah"
 ["Shakhtar Donetsk"]
 uz = "Shaxtyor"
 ru = "Шахтёр"
+en_short = "Shakhtar"
 
 ["Slavia Praha"]
 uz = "Slaviya Praga"
 ru = "Славия Прага"
 en = "Slavia Prague"
+uz_short = "Slaviya"
+ru_short = "Славия"
+en_short = "Slavia"
 
 ["Slovan Bratislava"]
 uz = "Slovan"
 ru = "Слован"
+en_short = "Slovan"
 
 ["Sporting CP"]
 uz = "Sporting"
