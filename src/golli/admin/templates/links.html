@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Havolalar — Golli admin{% endblock %}
+{% block head %}
+<style>
+.create { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.create input[name=name] { flex: 1 1 280px; }
+.link-cell { display: flex; align-items: center; gap: 8px; }
+.num { font-weight: 600; font-size: 15px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Ulashish havolalari</h1>
+    <p class="subtitle">Har joy uchun alohida havola yasang. Havola orqali birinchi marta kirgan foydalanuvchi shu havolaga yoziladi.</p>
+  </div>
+</div>
+
+<section class="card" style="margin-bottom:14px">
+  <div class="card-head"><h2>Yangi havola</h2></div>
+  <div class="card-body">
+    {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+    {% if created %}<div class="alert success">✅ Havola yaratildi: <code>https://t.me/{{ bot }}?start={{ created }}</code></div>{% endif %}
+    <form method="post" action="/links" class="create">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input name="name" maxlength="128" placeholder="Nomi, masalan: Instagram bio" required>
+      <select name="source" required>
+        {% for code, title in sources.items() %}<option value="{{ code }}">{{ title }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn-primary">+ Havola yasash</button>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Nomi</th><th>Manba</th><th>Havola</th><th>Kelganlar</th><th>24 soatda faol</th><th>Yaratilgan</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for link in links %}
+        {% set full = 'https://t.me/' ~ bot ~ '?start=' ~ link.code %}
+        <tr>
+          <td class="cell-main">{{ link.name }}</td>
+          <td><span class="chip src-{{ link.source }}">{{ sources.get(link.source, link.source) }}</span></td>
+          <td><div class="link-cell"><code>{{ full }}</code><button type="button" onclick="copyLink(this, '{{ full }}')">Nusxa</button></div></td>
+          <td><a class="num" href="/?source=link:{{ link.id }}">{{ link.users }}</a></td>
+          <td class="num">{{ link.active_24h }}</td>
+          <td><div class="cell-main">{{ local(link.created_at, "dd.MM.yyyy") }}</div><div class="cell-sub">{{ local(link.created_at, "HH:mm") }}</div></td>
+          <td>
+            <form method="post" action="/links/{{ link.id }}/delete" onsubmit="return confirm('Havola o\'chirilsinmi? U orqali kelgan foydalanuvchilar «Havolasiz» bo\'lib qoladi, havola esa ishlamay qoladi.')">
+              <input type="hidden" name="csrf" value="{{ csrf }}">
+              <button type="submit" class="btn-danger">O'chirish</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty" style="text-align:center;padding:40px">Hali havola yo'q — yuqorida birinchisini yasang</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<script>
+function copyLink(button, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const label = button.textContent;
+    button.textContent = "Nusxalandi ✓";
+    setTimeout(() => { button.textContent = label; }, 1500);
+  });
+}
+</script>
+{% endblock %}

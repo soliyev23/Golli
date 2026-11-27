@@ -23,6 +23,14 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
 
+    # Veb admin panel. Parol ochiq holda saqlanmaydi, faqat xeshi:
+    # python -m golli.admin.hash_password. ADMIN_SECRET — sessiya cookie'sini imzolash kaliti.
+    admin_username: str = "admin"
+    admin_password_hash: SecretStr = SecretStr("")
+    admin_secret: SecretStr = SecretStr("")
+    # Ulashish havolalari uchun bot username'i; bo'sh bo'lsa, Telegram'dan so'raladi.
+    bot_username: str = ""
+
     # Klub logotiplari emoji to'plamining egasi bo'ladigan Telegram foydalanuvchisi (ID).
     # Berilmagan bo'lsa, emoji yaratilmaydi va klublar logotipsiz ko'rsatiladi.
     emoji_owner_id: int | None = None

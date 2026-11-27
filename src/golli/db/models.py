@@ -30,6 +30,34 @@ class User(Base):
     # Foydalanuvchi botni bloklasa False bo'ladi — unga xabar yuborilmaydi.
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=true())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Telegram profilidan (har kirishda yangilanadi) — admin panel uchun.
+    first_name: Mapped[str | None] = mapped_column(String(128))
+    last_name: Mapped[str | None] = mapped_column(String(128))
+    username: Mapped[str | None] = mapped_column(String(64))
+    language_code: Mapped[str | None] = mapped_column(String(16))
+    # Botdan oxirgi marta foydalangan vaqt (kunlik faol foydalanuvchilar shundan hisoblanadi).
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Qaysi ulashish havolasi orqali kelgan (birinchi /start dagi kod); NULL — havolasiz.
+    invite_link_id: Mapped[int | None] = mapped_column(
+        ForeignKey("invite_links.id", ondelete="SET NULL")
+    )
+
+
+class InviteLink(Base):
+    """Admin panelda yasalgan ulashish havolasi: t.me/<bot>?start=<code>.
+
+    Havola orqali birinchi marta kirgan foydalanuvchi shu havolaga biriktiriladi — shu yo'l bilan
+    "Telegramdan qancha, Instagramdan qancha keldi" hisoblanadi.
+    """
+
+    __tablename__ = "invite_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(64), unique=True)
+    name: Mapped[str] = mapped_column(String(128))
+    # Manba turi: telegram, instagram yoki other (admin/links.py dagi SOURCES).
+    source: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Team(Base):

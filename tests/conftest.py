@@ -270,7 +270,8 @@ async def db(
     async with session_factory.begin() as session:
         await session.execute(
             text(
-                "TRUNCATE notifications, favorites, users, standings, matches, teams, external_refs"
+                "TRUNCATE notifications, favorites, users, invite_links, standings, matches, "
+                "teams, external_refs"
             )
         )
     return session_factory

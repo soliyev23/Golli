@@ -133,11 +133,13 @@ async def test_new_user_picks_a_club_right_after_choosing_language(make_chat, db
     await chat.choose_language("uz")
 
     [clubs] = await chat.send(i18n.translate("uz", "competition-epl"))
-    # Klublar ro'yxatida "Orqaga" (ligalarga) va "Tayyor" (tugatish) tugmalari bor.
-    assert menu_buttons(clubs)[-2:] == ["⬅️ Orqaga", "✅ Tayyor"]
+    # "Tayyor" ro'yxat boshida alohida qatorda, "Orqaga" (ligalarga) — eng pastda.
+    rows = [[button.text for button in row] for row in clubs.reply_markup.keyboard]
+    assert rows[0] == ["✅ Tayyor"]
+    assert rows[-1] == ["⬅️ Orqaga"]
     [added] = await chat.send("Arsenal")
     assert added.text == "✅ Qo'shildi: Arsenal"
-    assert menu_buttons(added)[-1] == "✅ Tayyor"
+    assert menu_buttons(added)[0] == "✅ Tayyor"
 
     # "Tayyor" bosilgach salomlashuv va asosiy menyu chiqadi.
     [greeting] = await chat.send("✅ Tayyor")

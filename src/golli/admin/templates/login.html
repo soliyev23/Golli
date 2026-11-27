@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Kirish — Golli admin{% endblock %}
+{% block head %}
+<style>
+main { max-width: none; padding: 0; }
+.auth { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+.auth-hero { position: relative; overflow: hidden; color: #fff; padding: 48px 56px; display: flex; flex-direction: column; justify-content: space-between;
+  background: radial-gradient(120% 90% at 0% 0%, #22c55e 0%, #15803d 45%, #0b3d23 100%); }
+.auth-hero::before { content: ""; position: absolute; inset: 0; opacity: .14;
+  background-image: linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px);
+  background-size: 44px 44px; mask-image: radial-gradient(80% 80% at 30% 30%, #000, transparent); }
+.auth-hero > * { position: relative; }
+.pitch { position: absolute; right: -120px; bottom: -120px; width: 420px; height: 420px; border: 2px solid rgba(255,255,255,.18); border-radius: 50%; }
+.pitch::after { content: ""; position: absolute; inset: 120px; border: 2px solid rgba(255,255,255,.18); border-radius: 50%; }
+.hero-brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; }
+.hero-brand .mark { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; font-size: 22px;
+  background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.25); backdrop-filter: blur(6px); }
+.hero-copy h2 { font-size: 34px; line-height: 1.15; letter-spacing: -.8px; margin: 0 0 12px; max-width: 420px; }
+.hero-copy p { margin: 0; max-width: 400px; color: rgba(255,255,255,.82); font-size: 15px; }
+.hero-foot { color: rgba(255,255,255,.7); font-size: 13px; }
+
+.auth-form { display: grid; place-items: center; padding: 40px 24px; background: var(--surface); }
+.form-box { width: 100%; max-width: 360px; }
+.form-box h1 { font-size: 26px; margin-bottom: 6px; }
+.form-box .lead { color: var(--muted); margin: 0 0 28px; }
+.field { display: grid; gap: 7px; font-weight: 600; font-size: 13px; margin-bottom: 16px; }
+.input-wrap { position: relative; }
+.input-wrap svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--faint); pointer-events: none; }
+.input-wrap input { width: 100%; padding: 12px 42px 12px 40px; border-radius: 12px; font-size: 15px; background: var(--surface-2); }
+.input-wrap input:focus { background: var(--surface); }
+.toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; padding: 6px 8px; color: var(--muted); font-size: 12px; }
+.toggle:hover { background: transparent; color: var(--text); }
+.submit { width: 100%; justify-content: center; padding: 13px; margin-top: 8px; border-radius: 12px; font-size: 15px;
+  box-shadow: 0 8px 20px rgba(22,163,74,.25); }
+.secure { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--faint); font-size: 12px; margin-top: 22px; }
+.secure svg { width: 14px; height: 14px; }
+@media (max-width: 860px) {
+  .auth { grid-template-columns: 1fr; }
+  .auth-hero { padding: 28px 24px; min-height: 210px; }
+  .hero-copy h2 { font-size: 24px; } .hero-foot, .hero-copy p { display: none; }
+  .auth-form { align-items: start; padding-top: 32px; }
+}
+</style>
+{% endblock %}
+{% block content %}
+{% set icon = 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"' %}
+<div class="auth">
+  <section class="auth-hero">
+    <span class="pitch"></span>
+    <div class="hero-brand"><span class="mark">⚽</span>Golli</div>
+    <div class="hero-copy">
+      <h2>Futbol botingizning boshqaruv paneli</h2>
+      <p>Foydalanuvchilar, faollik va ular qayerdan kelgani — hammasi bir joyda.</p>
+    </div>
+    <div class="hero-foot">© Golli · @golliuzbot</div>
+  </section>
+
+  <section class="auth-form">
+    <div class="form-box">
+      <h1>Xush kelibsiz 👋</h1>
+      <p class="lead">Davom etish uchun hisobingizga kiring</p>
+      {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+      <form method="post" action="/login">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label class="field">Login
+          <span class="input-wrap">
+            <svg {{ icon | safe }}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <input name="username" autocomplete="username" placeholder="Loginingiz" required autofocus>
+          </span>
+        </label>
+        <label class="field">Parol
+          <span class="input-wrap">
+            <svg {{ icon | safe }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+            <button type="button" class="toggle" onclick="togglePassword(this)">Ko'rsatish</button>
+          </span>
+        </label>
+        <button type="submit" class="btn-primary submit">Kirish</button>
+      </form>
+      <div class="secure"><svg {{ icon | safe }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Himoyalangan ulanish</div>
+    </div>
+  </section>
+</div>
+<script>
+function togglePassword(button) {
+  const input = document.getElementById("password");
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  button.textContent = show ? "Yashirish" : "Ko'rsatish";
+}
+</script>
+{% endblock %}

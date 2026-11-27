@@ -77,6 +77,17 @@ services:
       redis:
         condition: service_healthy
 
+  # Veb admin panel. Port faqat serverning o'ziga (127.0.0.1) ochiq: internetga Caddy (HTTPS)
+  # orqali golli.lynkox.uz manzilida chiqadi.
+  admin:
+    <<: *app
+    command: ["python", "-m", "golli.admin"]
+    ports:
+      - "127.0.0.1:8095:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   pgdata:
   redisdata:

@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+/* KPI kartalar: beshtasi bitta qatorda; chap chetida rangli chiziq */
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+.kpi { position: relative; overflow: hidden; padding: 20px 22px 18px 26px; display: flex; justify-content: space-between; gap: 12px; }
+.kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--kpi-color); }
+.kpi-text { min-width: 0; }
+.kpi-label { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .7px; line-height: 1.3; }
+.kpi-value { font-size: 30px; font-weight: 700; letter-spacing: -.8px; line-height: 1.15; margin-top: 10px; color: var(--text); }
+.kpi-value small { font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: 0; margin-left: 4px; }
+.kpi-hint { color: var(--muted); font-size: 13px; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-icon { width: 46px; height: 46px; flex: none; border-radius: 12px; display: grid; place-items: center;
+  background: var(--kpi-soft); color: var(--kpi-color); }
+.kpi-icon svg { width: 22px; height: 22px; }
+.k-total { --kpi-color: #2563eb; --kpi-soft: #eaf1fe; }
+.k-active { --kpi-color: var(--brand); --kpi-soft: var(--brand-soft); }
+.k-tg { --kpi-color: var(--tg); --kpi-soft: var(--tg-soft); }
+.k-ig { --kpi-color: var(--ig); --kpi-soft: var(--ig-soft); }
+.k-blocked { --kpi-color: var(--danger); --kpi-soft: var(--danger-soft); }
+@media (prefers-color-scheme: dark) { .k-total { --kpi-soft: #12203a; } }
+
+/* Grafik va yon panellar */
+.panels { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+.chart { display: grid; grid-template-columns: 28px 1fr; gap: 8px; }
+.chart-axis { display: flex; flex-direction: column; justify-content: space-between; height: 180px;
+  color: var(--faint); font-size: 11px; text-align: right; }
+.chart-area { position: relative; height: 180px; }
+.chart-grid { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+.chart-grid span { border-top: 1px dashed var(--border); }
+.chart-bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 4px; }
+.chart-bar { flex: 1; height: 100%; display: flex; align-items: flex-end; position: relative; cursor: default; }
+.chart-bar i { display: block; width: 100%; border-radius: 5px 5px 2px 2px; min-height: 3px;
+  background: linear-gradient(180deg, var(--brand-2), var(--brand)); opacity: .75; transition: opacity .12s; }
+.chart-bar.zero i { background: var(--border-strong); opacity: .6; }
+.chart-bar:hover i { opacity: 1; }
+.chart-tip { position: absolute; bottom: calc(var(--h) + 8px); left: 50%; transform: translateX(-50%) translateY(4px);
+  background: var(--text); color: var(--surface); padding: 6px 9px; border-radius: 8px; font-size: 12px; line-height: 1.3;
+  white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s, transform .12s; z-index: 2; text-align: center; }
+.chart-tip b { display: block; font-size: 14px; }
+.chart-tip::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--text); }
+.chart-bar:hover .chart-tip { opacity: 1; transform: translateX(-50%) translateY(0); }
+.chart-bar:first-child .chart-tip { left: 0; transform: translateY(4px); } .chart-bar:first-child .chart-tip::after { left: 10px; }
+.chart-bar:last-child .chart-tip { left: auto; right: 0; transform: translateY(4px); } .chart-bar:last-child .chart-tip::after { left: auto; right: 6px; }
+.chart-bar:first-child:hover .chart-tip, .chart-bar:last-child:hover .chart-tip { transform: translateY(0); }
+.chart-x { display: flex; justify-content: space-between; color: var(--faint); font-size: 11px; margin: 8px 0 0 36px; }
+
+.rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rank li { display: grid; gap: 5px; }
+.rank-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.rank-row b { font-weight: 600; }
+.track { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.track i { display: block; height: 100%; border-radius: 999px; background: var(--brand); }
+.split { display: grid; gap: 18px; }
+.empty { color: var(--faint); font-size: 13px; padding: 8px 0; }
+
+/* Jadval asboblar paneli */
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.search { position: relative; }
+.search input { padding-left: 34px; width: 260px; }
+.search::before { content: "⌕"; position: absolute; left: 12px; top: 50%; transform: translateY(-52%); color: var(--faint); font-size: 16px; }
+.seg { display: inline-flex; padding: 3px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+.seg a { padding: 5px 12px; text-decoration: none; color: var(--muted); border-radius: 7px; font-weight: 500; font-size: 13px; }
+.seg a.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.count-pill { background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); border-radius: 999px; padding: 1px 9px; font-size: 12px; font-weight: 600; margin-left: 6px; }
+.pager { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 14px 20px; border-top: 1px solid var(--border); }
+.user-cell { display: flex; align-items: center; gap: 10px; }
+.user-avatar { width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 600; font-size: 13px; color: #fff; }
+
+@media (max-width: 1280px) { .kpi-icon { width: 40px; height: 40px; } .kpi-icon svg { width: 19px; height: 19px; } .kpi { padding: 18px 16px 16px 22px; } }
+@media (max-width: 1180px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .panels { grid-template-columns: 1fr 1fr; } .panels > :first-child { grid-column: 1 / -1; } }
+@media (max-width: 700px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kpi { padding: 14px 12px 14px 18px; } .kpi-value { font-size: 24px; } .kpi-icon { display: none; } .kpi-label { font-size: 11px; letter-spacing: .4px; }
+  .panels { grid-template-columns: 1fr; }
+  .toolbar { padding: 14px; }
+  .toolbar h2 { flex: 1 1 100%; }
+  .toolbar .spacer { display: none; }
+  .search, .toolbar select { flex: 1 1 100%; }
+  .search input { width: 100%; }
+  .chart-bars { gap: 2px; }
+}
+</style>
+{% endblock %}
+{% block content %}
+{% set percent = (100 * kpi.active_24h / kpi.total) | round | int if kpi.total else 0 %}
+{% set icon = 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"' %}
+<section class="kpis">
+  <div class="card kpi k-total">
+    <div class="kpi-text">
+      <div class="kpi-label">Foydalanuvchilar</div>
+      <div class="kpi-value">{{ num(kpi.total) }}<small>ta</small></div>
+      <div class="kpi-hint">bugun: +{{ num(kpi.new_today) }}</div>
+    </div>
+    <span class="kpi-icon"><svg {{ icon | safe }}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+  </div>
+  <div class="card kpi k-active">
+    <div class="kpi-text">
+      <div class="kpi-label">Kunlik faol</div>
+      <div class="kpi-value">{{ num(kpi.active_24h) }}<small>ta</small></div>
+      <div class="kpi-hint">{{ percent }}% · 24 soatda</div>
+    </div>
+    <span class="kpi-icon"><svg {{ icon | safe }}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+  </div>
+  <div class="card kpi k-tg">
+    <div class="kpi-text">
+      <div class="kpi-label">Telegramdan</div>
+      <div class="kpi-value">{{ num(kpi.from_telegram) }}<small>ta</small></div>
+      <div class="kpi-hint">havolalar orqali</div>
+    </div>
+    <span class="kpi-icon"><svg {{ icon | safe }}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></span>
+  </div>
+  <div class="card kpi k-ig">
+    <div class="kpi-text">
+      <div class="kpi-label">Instagramdan</div>
+      <div class="kpi-value">{{ num(kpi.from_instagram) }}<small>ta</small></div>
+      <div class="kpi-hint">havolalar orqali</div>
+    </div>
+    <span class="kpi-icon"><svg {{ icon | safe }}><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/></svg></span>
+  </div>
+  <div class="card kpi k-blocked">
+    <div class="kpi-text">
+      <div class="kpi-label">Bloklagan</div>
+      <div class="kpi-value">{{ num(kpi.blocked) }}<small>ta</small></div>
+      <div class="kpi-hint">botni to'xtatganlar</div>
+    </div>
+    <span class="kpi-icon"><svg {{ icon | safe }}><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg></span>
+  </div>
+</section>
+
+<section class="panels">
+  <div class="card">
+    <div class="card-head">
+      <h2>Yangi foydalanuvchilar</h2>
+      <span class="muted" style="font-size:13px">oxirgi 30 kun · jami {{ days | sum(attribute=1) }}</span>
+    </div>
+    <div class="card-body">
+      {% set top = [days_max, 1] | max %}
+      <div class="chart">
+        <div class="chart-axis"><span>{{ top }}</span><span>{{ (top / 2) | round(1) | string | replace('.0', '') }}</span><span>0</span></div>
+        <div class="chart-area">
+          <div class="chart-grid"><span></span><span></span><span></span></div>
+          <div class="chart-bars">
+            {% for day, count in days %}
+            {% set height = (100 * count / top) if count else 2 %}
+            <div class="chart-bar{{ ' zero' if not count }}" style="--h: {{ height }}%">
+              <i style="height: {{ height }}%"></i>
+              <span class="chart-tip"><b>{{ count }} ta</b>{{ local_date(day) }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="chart-x"><span>{{ local_date(days[0][0]) }}</span><span>{{ local_date(days[15][0]) }}</span><span>bugun</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Sevimli klublar</h2><span class="muted" style="font-size:13px">top 10</span></div>
+    <div class="card-body">
+      {% set club_max = (top_clubs | map(attribute=1) | max) if top_clubs else 1 %}
+      <ul class="rank">
+        {% for name, count in top_clubs %}
+        <li><div class="rank-row"><span>{{ club(name) }}</span><b>{{ count }}</b></div>
+          <div class="track"><i style="width: {{ 100 * count / club_max }}%"></i></div></li>
+        {% else %}<li class="empty">Hali hech kim tanlamagan</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Manbalar va tillar</h2></div>
+    <div class="card-body split">
+      {% set source_total = (breakdown | map(attribute=1) | sum) or 1 %}
+      <ul class="rank">
+        {% for source, count in breakdown %}
+        <li><div class="rank-row"><span>{{ sources.get(source, 'Havolasiz') }}</span><b>{{ count }}</b></div>
+          <div class="track"><i style="width: {{ 100 * count / source_total }}%; background: {{ {'telegram': 'var(--tg)', 'instagram': 'var(--ig)', 'other': 'var(--violet)'}.get(source, 'var(--faint)') }}"></i></div></li>
+        {% endfor %}
+      </ul>
+      {% set lang_total = (languages | map(attribute=1) | sum) or 1 %}
+      <ul class="rank">
+        {% for lang, count in languages %}
+        <li><div class="rank-row"><span>{{ lang_names.get(lang, lang) }}</span><b>{{ count }}</b></div>
+          <div class="track"><i style="width: {{ 100 * count / lang_total }}%; background: var(--amber)"></i></div></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="card" style="margin-top:14px">
+  <form class="toolbar" method="get" action="/">
+    <h2>Foydalanuvchilar<span class="count-pill">{{ total }}</span></h2>
+    <span class="spacer"></span>
+    <label class="search"><input type="search" name="q" value="{{ filters.query }}" placeholder="Ism, @username yoki ID"></label>
+    <select name="status" onchange="this.form.submit()">
+      <option value="all" {{ 'selected' if filters.status == 'all' }}>Barcha holatlar</option>
+      <option value="active" {{ 'selected' if filters.status == 'active' }}>24 soatda faol</option>
+      <option value="blocked" {{ 'selected' if filters.status == 'blocked' }}>Bloklaganlar</option>
+    </select>
+    <select name="source" onchange="this.form.submit()">
+      <option value="">Barcha manbalar</option>
+      {% for code, title in sources.items() %}<option value="{{ code }}" {{ 'selected' if filters.source == code }}>{{ title }}</option>{% endfor %}
+      <option value="organic" {{ 'selected' if filters.source == 'organic' }}>Havolasiz</option>
+      {% for link in links %}<option value="link:{{ link.id }}" {{ 'selected' if filters.source == 'link:' ~ link.id }}>Havola: {{ link.name }}</option>{% endfor %}
+    </select>
+    <input type="hidden" name="sort" value="{{ filters.sort }}">
+    <span class="seg">
+      <a href="{{ url(sort='new', page=1) }}" class="{{ 'on' if filters.sort == 'new' }}">Yangilar</a>
+      <a href="{{ url(sort='active', page=1) }}" class="{{ 'on' if filters.sort == 'active' }}">Faollar</a>
+    </span>
+    <a class="btn" href="/users.csv{{ url(page=None) }}">⬇ CSV</a>
+  </form>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Foydalanuvchi</th><th>Til</th><th>Manba</th><th>Sevimli klublar</th><th>Qo'shilgan</th><th>Oxirgi faollik</th><th>Holat</th></tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td>
+            <div class="user-cell">
+              <span class="user-avatar" style="background: hsl({{ user.id % 360 }} 55% 48%)">{{ (user.first_name or '?')[:1] }}</span>
+              <div>
+                <div class="cell-main">{{ user.full_name }}</div>
+                <div class="cell-sub">{% if user.username %}<a href="https://t.me/{{ user.username }}" target="_blank" rel="noopener">@{{ user.username }}</a> · {% endif %}{{ user.id }}</div>
+              </div>
+            </div>
+          </td>
+          <td>{{ lang_names.get(user.lang, user.lang) }}</td>
+          <td>{% if user.link_source %}<span class="chip src-{{ user.link_source }}">{{ sources.get(user.link_source) }}</span><div class="cell-sub">{{ user.link_name }}</div>{% else %}<span class="chip src-none">Havolasiz</span>{% endif %}</td>
+          <td class="wrap">{% for name in user.favorites %}{{ club(name) }}{{ ', ' if not loop.last }}{% else %}<span class="muted">—</span>{% endfor %}</td>
+          <td><div class="cell-main">{{ local(user.created_at, "dd.MM.yyyy") }}</div><div class="cell-sub">{{ local(user.created_at, "HH:mm") }}</div></td>
+          <td><div class="cell-main">{{ ago(user.last_seen_at) }}</div><div class="cell-sub">{{ local(user.last_seen_at) }}</div></td>
+          <td>{% if user.is_active %}<span class="badge ok">faol</span>{% else %}<span class="badge bad">bloklagan</span>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty" style="text-align:center;padding:40px">Hech kim topilmadi</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager">
+    <span class="muted" style="font-size:13px">{{ users | length }} / {{ total }} ko'rsatilmoqda</span>
+    {% if pages > 1 %}
+    <div style="display:flex;gap:8px;align-items:center">
+      {% if page > 1 %}<a class="btn" href="{{ url(page=page - 1) }}">← Oldingi</a>{% endif %}
+      <span class="muted">{{ page }} / {{ pages }}</span>
+      {% if page < pages %}<a class="btn" href="{{ url(page=page + 1) }}">Keyingi →</a>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -55,7 +55,7 @@ def clubs_keyboard(
 ) -> ReplyKeyboardMarkup:
     """Liganing barcha klublari (ro'yxat uzun bo'lsa, klaviatura aylantiriladi).
 
-    `done` — birinchi tanishuvdagi klub tanlash: "Orqaga" yonida "Tayyor" ham turadi.
+    `done` — birinchi tanishuvdagi klub tanlash: ro'yxat boshida "Tayyor" tugmasi turadi.
     """
     clubs = [
         KeyboardButton(
@@ -65,10 +65,9 @@ def clubs_keyboard(
         )
         for team in teams
     ]
-    last = [KeyboardButton(text=t("menu-back"))]
-    if done:
-        last.append(KeyboardButton(text=t("favorites-done")))
-    return _keyboard([*_in_rows(clubs), last])
+    # "Tayyor" ro'yxat boshida: klublar ko'p bo'lsa ham uni izlab pastga tushish shart emas.
+    top = [[KeyboardButton(text=t("favorites-done"))]] if done else []
+    return _keyboard([*top, *_in_rows(clubs), [KeyboardButton(text=t("menu-back"))]])
 
 
 def find_club(text: str, teams: list[Team], t: Translator, names: TeamNames) -> Team | None:

@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from aiogram import BaseMiddleware
@@ -6,7 +7,7 @@ from aiogram.enums import ChatType
 from aiogram.types import Update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from golli.db.users import get_or_create_user
+from golli.db.users import attach_invite_link, get_or_create, start_payload, touch_user
 from golli.i18n import I18n
 
 Handler = Callable[[Update, dict[str, Any]], Awaitable[Any]]
@@ -42,7 +43,12 @@ class UserMiddleware(BaseMiddleware):
         if tg_user is None or tg_user.is_bot or chat is None or chat.type != ChatType.PRIVATE:
             return None
 
-        user = await get_or_create_user(data["session"], tg_user.id)
+        session = data["session"]
+        user, created = await get_or_create(session, tg_user.id)
+        touch_user(user, tg_user, datetime.now(UTC))
+        if created and event.message is not None:
+            # Birinchi kirish: ulashish havolasi orqali kelgan bo'lsa, manbasi yozib qo'yiladi.
+            await attach_invite_link(session, user, start_payload(event.message.text))
         if event.message is not None:
             # Xabar yozgan foydalanuvchi botni bloklamagan: avval bloklagan bo'lsa, qayta faol.
             user.is_active = True
