@@ -87,7 +87,7 @@ def test_full_day_in_uzbek(i18n, names):
             "⚽ <code>Xetafe –:–</code> ⚽ <code>Valensiya</code> ⏸ ko'chirilgan",
             "<code>23:30</code> ⚽ <code>Real Madrid</code> ⚽ <code>Barselona</code>",
             "",
-            "🕐 Vaqt — Toshkent bo'yicha",
+            "🕐 Vaqt — O'zbekiston bo'yicha",
             "🔴 O'yin ketmoqda — hisob kechikib yangilanadi",
         ]
     )
@@ -137,7 +137,7 @@ def test_no_live_note_when_nothing_is_in_play(i18n, names):
     text = render(upcoming, i18n, names)
 
     assert "<code>23:00</code> ⚽ <code>Arsenal</code> ⚽ <code>Man Siti</code>" in text
-    assert text.endswith("🕐 Vaqt — Toshkent bo'yicha")
+    assert text.endswith("🕐 Vaqt — O'zbekiston bo'yicha")
 
 
 def test_after_midnight_kickoff_is_an_ordinary_match_of_its_own_date(i18n, names):
@@ -152,7 +152,7 @@ def test_after_midnight_kickoff_is_an_ordinary_match_of_its_own_date(i18n, names
             "<b>🇪🇸 La Liga</b>",
             "<code>01:00</code> ⚽ <code>Real Madrid</code> ⚽ <code>Barselona</code>",
             "",
-            "🕐 Vaqt — Toshkent bo'yicha",
+            "🕐 Vaqt — O'zbekiston bo'yicha",
         ]
     )
 
@@ -228,7 +228,7 @@ def test_two_days_in_one_message(i18n, names):
             "<b>🇪🇸 La Liga</b>",
             "<code>01:00</code> ⚽ <code>Real Madrid</code> ⚽ <code>Alaves</code>",
             "",
-            "🕐 Vaqt — Toshkent bo'yicha",
+            "🕐 Vaqt — O'zbekiston bo'yicha",
         ]
     )
 

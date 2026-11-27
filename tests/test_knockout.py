@@ -184,7 +184,7 @@ async def test_list_shows_stage_and_aggregate_before_the_second_leg(db, i18n, na
         "##### 🏆 Chempionlar ligasi · Pley-off",
         # Chiziqcha yonida — birinchi o'yindan keyingi yig'indi (Real 1, Liverpul 2).
         "01:00 | ⚽ Real Madrid | – (1:2) | ⚽ Liverpul",
-        "🕐 Vaqt — Toshkent bo'yicha",
+        "🕐 Vaqt — O'zbekiston bo'yicha",
         "Qavs ichida — ikki o'yin yig'indisi",
     ]
 

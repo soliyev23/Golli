@@ -480,7 +480,7 @@ async def test_recent_shows_the_last_two_match_days_newest_first(chat, db, sched
     assert text.index("Real Madrid") < text.index("Liverpul")
     assert "Man Siti" not in text
     # Natijalar ro'yxatida soat yo'q, demak vaqt mintaqasi haqida izoh ham yo'q.
-    assert "Toshkent" not in text
+    assert "O'zbekiston bo'yicha" not in text
 
 
 async def test_nothing_recent(chat, db, schedule):
@@ -536,7 +536,7 @@ async def test_night_match_is_listed_under_its_own_date(db, schedule, i18n, name
     sunday = lines.index("### ⚽ Ertaga, 29-noyabr, yakshanba")
     assert saturday < lines.index("20:00 | ⚽ Arsenal | – | ⚽ Man Siti") < sunday
     assert lines.index("01:00 | ⚽ Real Madrid | – | ⚽ Barselona") > sunday
-    assert lines[-1] == "🕐 Vaqt — Toshkent bo'yicha"
+    assert lines[-1] == "🕐 Vaqt — O'zbekiston bo'yicha"
 
 
 async def test_match_still_in_play_after_midnight_stays_in_the_list(db, schedule, i18n, names):

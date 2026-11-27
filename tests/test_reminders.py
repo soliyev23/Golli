@@ -289,7 +289,7 @@ async def test_morning_message_lists_all_favourite_matches(db, planner, sender, 
         "#### ⚽ Ertaga, 29-noyabr, yakshanba",
         "##### 🇪🇸 La Liga",
         "01:00 | ⚽ Real Madrid | – | ⚽ Barselona",
-        "🕐 Vaqt — Toshkent bo'yicha",
+        "🕐 Vaqt — O'zbekiston bo'yicha",
     ]
     assert not message.disable_notification
 
