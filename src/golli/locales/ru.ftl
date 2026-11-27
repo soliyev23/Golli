@@ -10,6 +10,7 @@ cmd-help = Помощь
 
 menu-matches = ⚽ Ближайшие матчи
 menu-recent = 🏁 Последние матчи
+menu-tournaments = 🏆 Турниры
 menu-favorites = ⭐ Любимые клубы
 menu-language = 🌐 Язык
 menu-settings = ⚙️ Настройки
@@ -41,6 +42,8 @@ help-text =
 
     🏁 <b>Последние матчи</b> — результаты двух последних игровых дней.
 
+    🏆 <b>Турниры</b> — таблицы Лиги чемпионов, АПЛ и Ла Лиги.
+
     ⚙️ <b>Настройки</b> — любимые клубы и язык.
 
     ⭐ <b>Любимые клубы</b> — выберите клуб, и я буду напоминать о его матчах:
@@ -57,6 +60,7 @@ help-text =
 unknown-message = Не понял. Воспользуйтесь кнопками ниже 👇
 menu-main = 🏠 Главное меню
 buttons-outdated = Эти кнопки устарели. Воспользуйтесь меню внизу.
+choose-hint = Выберите из кнопок ниже 👇
 settings-text =
     ⚙️ <b>Настройки</b>
 
@@ -85,6 +89,21 @@ status-suspended = прерван
 status-cancelled = отменён
 penalties = пен. { $home }:{ $away }
 
+## Турниры и таблицы
+
+# Формат даты и времени (шаблон Unicode CLDR): 27 ноября, 06:05
+datetime-format = d MMMM, HH:mm
+tournaments-text =
+    🏆 <b>Турниры</b>
+
+    Выберите турнир, чтобы посмотреть таблицу 👇
+# Заголовки столбцов таблицы: моноширинный шрифт, поэтому короткие (не длиннее 2 знаков).
+standings-col-club = Клуб
+standings-col-played = И
+standings-col-points = О
+standings-updated = 🕐 Обновлено: { $time }
+standings-empty = Таблица пока не загружена. Попробуйте чуть позже.
+
 ## Любимые клубы
 
 favorites-title = ⭐ <b>Любимые клубы</b>
@@ -95,7 +114,6 @@ favorites-pick = Нажмите на клуб, чтобы выбрать. Пов
 favorites-added = ✅ Добавлено: { $team }
 favorites-removed = ❌ Убрано: { $team }
 favorites-no-teams = Клубы этой лиги пока не загружены.
-favorites-choose-hint = Выберите из кнопок ниже 👇
 favorites-saved = ⭐ <b>Ваши любимые клубы:</b>
 favorites-saved-note = Буду напоминать об их матчах.
 favorites-none-saved = Клуб не выбран. В любой момент это можно сделать через ⚙️ Настройки → ⭐ Любимые клубы.

@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -6,7 +6,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from golli.db.models import ExternalRef, Match, Team
-from golli.providers.base import MatchData, MatchStatus
+from golli.providers.base import MatchData, MatchStatus, TeamData
 
 # Hali yakuniy holatga kelmagan o'yinlar.
 UNFINISHED = (MatchStatus.SCHEDULED.value, MatchStatus.LIVE.value)
@@ -30,6 +30,43 @@ async def _load_refs(
         )
     )
     return {external_id: internal_id for external_id, internal_id in rows}
+
+
+async def upsert_teams(
+    session: AsyncSession, provider: str, teams: Mapping[str, TeamData]
+) -> tuple[dict[str, int], int]:
+    """Provayder klublarini bazaga yozadi: yangisini qo'shadi, nomi yoki logotipini yangilaydi.
+
+    `teams` — provayder ID'si bo'yicha. Qaytaradi: ({provayder ID'si: ichki ID}, yangilari soni).
+    """
+    team_ids = await _load_refs(session, provider, "team", set(teams))
+    known_teams = {
+        team.id: team
+        for team in await session.scalars(select(Team).where(Team.id.in_(team_ids.values())))
+    }
+    created = 0
+    for external_id, data in teams.items():
+        internal_id = team_ids.get(external_id)
+        if internal_id is None:
+            team = Team(name=data.name, logo_url=data.logo_url)
+            session.add(team)
+            await session.flush()
+            session.add(
+                ExternalRef(
+                    provider=provider, entity="team", external_id=external_id, internal_id=team.id
+                )
+            )
+            team_ids[external_id] = team.id
+            created += 1
+            continue
+        team = known_teams[internal_id]
+        if team.name != data.name:
+            team.name = data.name
+        if data.logo_url and team.logo_url != data.logo_url:
+            # Logotip o'zgargan: eski emoji eskirdi, yangisi keyingi aylanishda yaratiladi.
+            team.logo_url = data.logo_url
+            team.emoji_id = None
+    return team_ids, created
 
 
 def _match_fields(data: MatchData, team_ids: dict[str, int]) -> dict[str, object]:
@@ -59,32 +96,7 @@ async def upsert_matches(
 
     # Klublar
     teams = {team.external_id: team for item in items for team in (item.home, item.away)}
-    team_ids = await _load_refs(session, provider, "team", set(teams))
-    known_teams = {
-        team.id: team
-        for team in await session.scalars(select(Team).where(Team.id.in_(team_ids.values())))
-    }
-    for external_id, data in teams.items():
-        internal_id = team_ids.get(external_id)
-        if internal_id is None:
-            team = Team(name=data.name, logo_url=data.logo_url)
-            session.add(team)
-            await session.flush()
-            session.add(
-                ExternalRef(
-                    provider=provider, entity="team", external_id=external_id, internal_id=team.id
-                )
-            )
-            team_ids[external_id] = team.id
-            result.teams_created += 1
-            continue
-        team = known_teams[internal_id]
-        if team.name != data.name:
-            team.name = data.name
-        if data.logo_url and team.logo_url != data.logo_url:
-            # Logotip o'zgargan: eski emoji eskirdi, yangisi keyingi aylanishda yaratiladi.
-            team.logo_url = data.logo_url
-            team.emoji_id = None
+    team_ids, result.teams_created = await upsert_teams(session, provider, teams)
 
     # O'yinlar
     match_ids = await _load_refs(session, provider, "match", {item.external_id for item in items})
@@ -140,6 +152,24 @@ async def has_unfinished(session: AsyncSession, after: datetime, until: datetime
             select(
                 exists().where(
                     Match.status.in_(UNFINISHED),
+                    Match.kickoff_at > after,
+                    Match.kickoff_at <= until,
+                )
+            )
+        )
+    )
+
+
+async def has_finished(
+    session: AsyncSession, competition: str, after: datetime, until: datetime
+) -> bool:
+    """Turnirda `after` < boshlanish <= `until` oralig'ida boshlanib, tugagan o'yin bormi?"""
+    return bool(
+        await session.scalar(
+            select(
+                exists().where(
+                    Match.competition == competition,
+                    Match.status == MatchStatus.FINISHED.value,
                     Match.kickoff_at > after,
                     Match.kickoff_at <= until,
                 )

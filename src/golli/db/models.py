@@ -115,6 +115,29 @@ class Notification(Base):
     error: Mapped[str | None] = mapped_column(String(255))
 
 
+class Standing(Base):
+    """Turnir jadvalining bitta qatori. Worker jadvalni butunligicha almashtirib turadi."""
+
+    __tablename__ = "standings"
+
+    competition: Mapped[str] = mapped_column(String(16), primary_key=True)
+    season: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    team_id: Mapped[int] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True
+    )
+    # Turnir guruhlarga bo'lingan bo'lsa — guruh nomi; bitta jadvalli turnirda NULL.
+    group_name: Mapped[str | None] = mapped_column(String(64))
+    position: Mapped[int] = mapped_column(SmallInteger)
+    played: Mapped[int] = mapped_column(SmallInteger)
+    wins: Mapped[int] = mapped_column(SmallInteger)
+    draws: Mapped[int] = mapped_column(SmallInteger)
+    losses: Mapped[int] = mapped_column(SmallInteger)
+    goals_for: Mapped[int] = mapped_column(SmallInteger)
+    goals_against: Mapped[int] = mapped_column(SmallInteger)
+    points: Mapped[int] = mapped_column(SmallInteger)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class ExternalRef(Base):
     """Provayder ID'si -> ichki ID.
 

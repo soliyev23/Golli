@@ -10,6 +10,7 @@ cmd-help = Yordam
 
 menu-matches = ⚽ Yaqin o'yinlar
 menu-recent = 🏁 Oxirgi o'yinlar
+menu-tournaments = 🏆 Turnirlar
 menu-favorites = ⭐ Sevimli klublar
 menu-language = 🌐 Til
 menu-settings = ⚙️ Sozlamalar
@@ -41,6 +42,8 @@ help-text =
 
     🏁 <b>Oxirgi o'yinlar</b> — oxirgi ikki o'yin kunining natijalari.
 
+    🏆 <b>Turnirlar</b> — Chempionlar ligasi, APL va La Liga jadvallari.
+
     ⚙️ <b>Sozlamalar</b> — sevimli klublar va til.
 
     ⭐ <b>Sevimli klublar</b> — klub tanlang, uning o'yinlari haqida eslatib turaman:
@@ -57,6 +60,7 @@ help-text =
 unknown-message = Tushunmadim. Pastdagi tugmalardan foydalaning 👇
 menu-main = 🏠 Asosiy menyu
 buttons-outdated = Bu tugmalar eskirgan. Pastdagi menyudan foydalaning.
+choose-hint = Pastdagi tugmalardan tanlang 👇
 settings-text =
     ⚙️ <b>Sozlamalar</b>
 
@@ -85,6 +89,21 @@ status-suspended = to'xtatilgan
 status-cancelled = bekor qilingan
 penalties = pen. { $home }:{ $away }
 
+## Turnirlar va jadvallar
+
+# Sana va vaqt ko'rinishi (Unicode CLDR andozasi): 27-noyabr, 06:05
+datetime-format = d-MMMM, HH:mm
+tournaments-text =
+    🏆 <b>Turnirlar</b>
+
+    Jadvalini ko'rish uchun turnirni tanlang 👇
+# Jadval ustunlari sarlavhalari: teng enli shriftda, shuning uchun qisqa (ko'pi bilan 2 belgi).
+standings-col-club = Klub
+standings-col-played = O'
+standings-col-points = O
+standings-updated = 🕐 Yangilangan: { $time }
+standings-empty = Jadval hali yuklanmagan. Birozdan keyin urinib ko'ring.
+
 ## Sevimli klublar
 
 favorites-title = ⭐ <b>Sevimli klublar</b>
@@ -95,7 +114,6 @@ favorites-pick = Klubni bosib tanlang. Qayta bossangiz, olib tashlanadi.
 favorites-added = ✅ Qo'shildi: { $team }
 favorites-removed = ❌ Olib tashlandi: { $team }
 favorites-no-teams = Bu liga klublari hali yuklanmagan.
-favorites-choose-hint = Pastdagi tugmalardan tanlang 👇
 favorites-saved = ⭐ <b>Sevimli klublaringiz:</b>
 favorites-saved-note = Ularning o'yinlari haqida eslatib turaman.
 favorites-none-saved = Klub tanlanmadi. Istalgan payt ⚙️ Sozlamalar → ⭐ Sevimli klublar orqali tanlashingiz mumkin.

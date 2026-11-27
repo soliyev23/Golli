@@ -139,9 +139,15 @@ async def test_toggle_unknown_team(db):
 
 
 BACK = "⬅️ Orqaga"
+MAIN_MENU_ROWS = [["⚽ Yaqin o'yinlar", "🏁 Oxirgi o'yinlar"], ["🏆 Turnirlar", "⚙️ Sozlamalar"]]
 
 
-async def open_league(chat, i18n, competition: str = "epl", locale: str = "uz"):
+async def open_league(
+    chat, i18n, competition: str = "epl", locale: str = "uz", *, from_menu: bool = True
+):
+    """Liga klublari ro'yxatini ochadi. `from_menu` — avval bo'limning o'ziga kiriladi."""
+    if from_menu:
+        await chat.send(i18n.translate(locale, "menu-favorites"))
     [sent] = await chat.send(i18n.translate(locale, f"competition-{competition}"))
     return sent
 
@@ -254,14 +260,14 @@ async def test_back_goes_one_step_at_a_time_to_settings_and_main_menu(chat, club
 
     [main] = await chat.send(BACK)
     assert main.text == "🏠 Asosiy menyu"
-    assert keyboard_rows(main) == [["⚽ Yaqin o'yinlar", "🏁 Oxirgi o'yinlar"], ["⚙️ Sozlamalar"]]
+    assert keyboard_rows(main) == MAIN_MENU_ROWS
 
 
 async def test_back_after_first_start_shows_the_choice_and_opens_main_menu(make_chat, clubs, i18n):
     chat = make_chat()
     await chat.choose_language("uz")  # yangi foydalanuvchi: klub tanlash taklif qilingan
 
-    await open_league(chat, i18n)
+    await open_league(chat, i18n, from_menu=False)
     await chat.send("Arsenal")
     await chat.send(BACK)
     [summary] = await chat.send(BACK)
@@ -269,7 +275,7 @@ async def test_back_after_first_start_shows_the_choice_and_opens_main_menu(make_
     assert summary.text == (
         "⭐ <b>Sevimli klublaringiz:</b>\n• Arsenal\n\nUlarning o'yinlari haqida eslatib turaman."
     )
-    assert keyboard_rows(summary) == [["⚽ Yaqin o'yinlar", "🏁 Oxirgi o'yinlar"], ["⚙️ Sozlamalar"]]
+    assert keyboard_rows(summary) == MAIN_MENU_ROWS
 
 
 async def test_skipping_the_choice_after_first_start(make_chat, i18n):
@@ -279,7 +285,7 @@ async def test_skipping_the_choice_after_first_start(make_chat, i18n):
     [summary] = await chat.send(BACK)
 
     assert summary.text.startswith("Klub tanlanmadi.")
-    assert keyboard_rows(summary)[-1] == ["⚙️ Sozlamalar"]
+    assert keyboard_rows(summary) == MAIN_MENU_ROWS
 
 
 async def test_favorites_belong_to_each_user_separately(make_chat, db, clubs, i18n):

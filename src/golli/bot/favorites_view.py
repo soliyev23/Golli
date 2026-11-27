@@ -9,7 +9,6 @@ qarab topadi.
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 from golli.bot.views import club_label
-from golli.competitions import COMPETITIONS
 from golli.db.models import Team
 from golli.i18n import Translator
 from golli.services.team_names import TeamNames
@@ -42,23 +41,11 @@ def summary_text(favorites: list[Team], t: Translator, names: TeamNames) -> str:
 
 
 def _keyboard(rows: list[list[KeyboardButton]]) -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, is_persistent=True)
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
 def _in_rows(buttons: list[KeyboardButton]) -> list[list[KeyboardButton]]:
     return [buttons[index : index + COLUMNS] for index in range(0, len(buttons), COLUMNS)]
-
-
-def leagues_keyboard(t: Translator) -> ReplyKeyboardMarkup:
-    leagues = [KeyboardButton(text=t(f"competition-{code}")) for code in COMPETITIONS]
-    # Birinchi liga nomi uzun ("Chempionlar ligasi"), shuning uchun u alohida qatorda.
-    return _keyboard(
-        [
-            leagues[:1],
-            *_in_rows(leagues[1:]),
-            [KeyboardButton(text=t("menu-back"))],
-        ]
-    )
 
 
 def sort_teams(teams: list[Team], t: Translator, names: TeamNames) -> list[Team]:

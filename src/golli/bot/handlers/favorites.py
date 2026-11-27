@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from golli.bot import favorites_view as view
 from golli.bot.callbacks import FavoriteListCallback, FavoritesCallback, FavoriteToggleCallback
 from golli.bot.filters import LeagueButton, MenuButton
-from golli.bot.keyboards import main_menu, settings_menu
+from golli.bot.keyboards import leagues_menu, main_menu, settings_menu
 from golli.bot.states import FROM_SETTINGS, FROM_START, FavoritesFlow, open_favorites
 from golli.bot.views import club_label
 from golli.competitions import COMPETITIONS
@@ -26,7 +26,7 @@ async def _leagues(
     session: AsyncSession, user: User, t: Translator, names: TeamNames
 ) -> dict[str, Any]:
     favorites = await favorite_teams(session, user.id)
-    return {"text": view.root_text(favorites, t, names), "reply_markup": view.leagues_keyboard(t)}
+    return {"text": view.root_text(favorites, t, names), "reply_markup": leagues_menu(t)}
 
 
 async def _clubs(
@@ -59,7 +59,9 @@ async def show_leagues(
     await message.answer(**await _leagues(session, user, t, names))
 
 
-@router.message(LeagueButton())
+# Liga tugmalari "Turnirlar" bo'limida ham bor, shuning uchun bu yerda faqat shu bo'lim
+# ichida (holatga qarab) ushlanadi.
+@router.message(StateFilter(FavoritesFlow), LeagueButton())
 async def show_clubs(
     message: Message,
     competition: str,
@@ -122,14 +124,13 @@ async def toggle_club(
     in_club_list = await state.get_state() == FavoritesFlow.clubs.state
     if not in_club_list or competition not in COMPETITIONS:
         await state.set_state(FavoritesFlow.leagues)
-        hint = t("favorites-choose-hint")
-        await message.answer(hint, reply_markup=view.leagues_keyboard(t))
+        await message.answer(t("choose-hint"), reply_markup=leagues_menu(t))
         return
 
     teams = view.sort_teams(await competition_teams(session, competition), t, names)
     team = view.find_club(message.text, teams, t, names)
     if team is None:
-        hint = t("favorites-choose-hint")
+        hint = t("choose-hint")
         await message.answer(**await _clubs(session, user, competition, t, names, text=hint))
         return
 

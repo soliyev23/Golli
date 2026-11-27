@@ -58,9 +58,14 @@ def render_morning(
 
     Yarim tundan keyin boshlanadigan o'yin ertangi sana sarlavhasi bilan chiqadi.
     """
-    days = [
+    days = morning_days(matches, tz)
+    schedule = render_days(days, today=today, now=now, t=t, names=names, tz=tz)
+    return f"{t('notify-morning-title')}\n\n{schedule}"
+
+
+def morning_days(matches: list[DayMatch], tz: tzinfo) -> list[tuple[date, list[DayMatch]]]:
+    """Boshlanish tartibidagi o'yinlar — taqvim sanalari bo'yicha guruhlangan."""
+    return [
         (day, list(group))
         for day, group in groupby(matches, key=lambda match: local_date(match.kickoff_at, tz))
     ]
-    schedule = render_days(days, today=today, now=now, t=t, names=names, tz=tz)
-    return f"{t('notify-morning-title')}\n\n{schedule}"

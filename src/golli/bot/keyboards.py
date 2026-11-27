@@ -6,7 +6,11 @@ from aiogram.types import (
 )
 
 from golli.bot.callbacks import LangCallback
+from golli.competitions import COMPETITIONS
 from golli.i18n import I18n, Translator
+
+# Pastki klaviaturalarda is_persistent qo'yilmaydi: u bilan Telegram klaviaturani doim ochiq
+# ushlab turadi va yozish maydonidagi "klaviaturani yashirish" tugmasini ko'rsatmaydi.
 
 
 def main_menu(t: Translator) -> ReplyKeyboardMarkup:
@@ -16,10 +20,22 @@ def main_menu(t: Translator) -> ReplyKeyboardMarkup:
                 KeyboardButton(text=t("menu-matches")),
                 KeyboardButton(text=t("menu-recent")),
             ],
-            [KeyboardButton(text=t("menu-settings"))],
+            [
+                KeyboardButton(text=t("menu-tournaments")),
+                KeyboardButton(text=t("menu-settings")),
+            ],
         ],
         resize_keyboard=True,
-        is_persistent=True,
+    )
+
+
+def leagues_menu(t: Translator) -> ReplyKeyboardMarkup:
+    """Ligalar ro'yxati va "Orqaga". Sevimli klublar va turnirlar bo'limlarida ishlatiladi."""
+    first, *others = [KeyboardButton(text=t(f"competition-{code}")) for code in COMPETITIONS]
+    return ReplyKeyboardMarkup(
+        # Birinchi liga nomi uzun ("Chempionlar ligasi"), shuning uchun u alohida qatorda.
+        keyboard=[[first], others, [KeyboardButton(text=t("menu-back"))]],
+        resize_keyboard=True,
     )
 
 
@@ -33,7 +49,6 @@ def settings_menu(t: Translator) -> ReplyKeyboardMarkup:
             [KeyboardButton(text=t("menu-back"))],
         ],
         resize_keyboard=True,
-        is_persistent=True,
     )
 
 

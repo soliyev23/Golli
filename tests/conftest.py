@@ -23,6 +23,7 @@ from aiogram.methods import (
     GetMe,
     GetStickerSet,
     SendMessage,
+    SendRichMessage,
     TelegramMethod,
 )
 from aiogram.types import (
@@ -119,7 +120,7 @@ class RecordingSession(BaseSession):
         self.requests.append(method)
         if type(method) in self.method_failures:
             raise self.method_failures[type(method)](method)
-        if isinstance(method, SendMessage) and method.chat_id in self.failures:
+        if isinstance(method, SendMessage | SendRichMessage) and method.chat_id in self.failures:
             raise self.failures[method.chat_id](method)
         if isinstance(method, GetMe):
             return TgUser(id=BOT_ID, is_bot=True, first_name="Golli", username=BOT_USERNAME)
@@ -127,12 +128,12 @@ class RecordingSession(BaseSession):
             method, CreateNewStickerSet | AddStickerToSet | GetStickerSet | DeleteStickerFromSet
         ):
             return self._sticker_request(method)
-        if isinstance(method, SendMessage):
+        if isinstance(method, SendMessage | SendRichMessage):
             return Message(
                 message_id=len(self.requests),
                 date=datetime.now(UTC),
                 chat=Chat(id=method.chat_id, type="private"),
-                text=method.text,
+                text=getattr(method, "text", None),
             )
         return True
 
@@ -169,7 +170,8 @@ class PrivateChat:
         self._update_id += 1
         await self._dispatcher.feed_update(self._bot, Update(update_id=self._update_id, **event))
         self.requests = session.requests[before:]
-        return [m for m in self.requests if isinstance(m, SendMessage)]
+        # Jadvalli (rich) xabarlar ham bot yuborgan xabar hisoblanadi.
+        return [m for m in self.requests if isinstance(m, SendMessage | SendRichMessage)]
 
     async def press(self, callback_data: str) -> list[SendMessage]:
         """Foydalanuvchi bot xabari ostidagi inline tugmani bosadi."""
@@ -267,7 +269,9 @@ async def db(
     """Har bir test oldidan tozalangan baza."""
     async with session_factory.begin() as session:
         await session.execute(
-            text("TRUNCATE notifications, favorites, users, matches, teams, external_refs")
+            text(
+                "TRUNCATE notifications, favorites, users, standings, matches, teams, external_refs"
+            )
         )
     return session_factory
 

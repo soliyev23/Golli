@@ -1,9 +1,11 @@
+import re
 import tomllib
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
 
+from golli.bot import views
 from golli.bot.views import render_days, render_no_recent, render_no_upcoming
 from golli.providers.base import MatchStatus
 from golli.services.schedule import DayMatch
@@ -74,16 +76,16 @@ def test_full_day_in_uzbek(i18n, names):
             "⚽ <b>Bugun, 28-noyabr, shanba</b>",
             "",
             "<b>🏆 Chempionlar ligasi</b>",
-            "22:45 Bryugge – Liverpul",
+            "<code>22:45</code> ⚽ <code>Bryugge</code> ⚽ <code>Liverpul</code>",
             "",
             f"<b>{t('competition-epl')}</b>",
-            "Everton <b>0:2</b> Liverpul",
-            "🔴 Arsenal <b>1:0</b> Man Siti",
-            "🔴 Fulxem – Bornmut",
+            "⚽ <code>Everton 0:2</code> ⚽ <code>Liverpul</code>",
+            "⚽ <code>Arsenal 1:0</code> ⚽ <code>Man Siti</code> 🔴",
+            "⚽ <code>Fulxem  –:–</code> ⚽ <code>Bornmut</code> 🔴",
             "",
             "<b>🇪🇸 La Liga</b>",
-            "⏸ Xetafe – Valensiya · ko'chirilgan",
-            "23:30 Real Madrid – Barselona",
+            "⚽ <code>Xetafe –:–</code> ⚽ <code>Valensiya</code> ⏸ ko'chirilgan",
+            "<code>23:30</code> ⚽ <code>Real Madrid</code> ⚽ <code>Barselona</code>",
             "",
             "🕐 Vaqt — Toshkent bo'yicha",
             "🔴 O'yin ketmoqda — hisob kechikib yangilanadi",
@@ -94,8 +96,16 @@ def test_full_day_in_uzbek(i18n, names):
 @pytest.mark.parametrize(
     ("locale", "title", "line"),
     [
-        ("ru", "⚽ <b>Сегодня, 28 ноября, суббота</b>", "Эвертон <b>0:2</b> Ливерпуль"),
-        ("en", "⚽ <b>Today, Saturday, 28 November</b>", "Everton <b>0:2</b> Liverpool"),
+        (
+            "ru",
+            "⚽ <b>Сегодня, 28 ноября, суббота</b>",
+            "⚽ <code>Эвертон 0:2</code> ⚽ <code>Ливерпуль</code>",
+        ),
+        (
+            "en",
+            "⚽ <b>Today, Saturday, 28 November</b>",
+            "⚽ <code>Everton 0:2</code> ⚽ <code>Liverpool</code>",
+        ),
     ],
 )
 def test_other_languages(i18n, names, locale, title, line):
@@ -126,7 +136,7 @@ def test_no_live_note_when_nothing_is_in_play(i18n, names):
 
     text = render(upcoming, i18n, names)
 
-    assert "23:00 Arsenal – Man Siti" in text
+    assert "<code>23:00</code> ⚽ <code>Arsenal</code> ⚽ <code>Man Siti</code>" in text
     assert text.endswith("🕐 Vaqt — Toshkent bo'yicha")
 
 
@@ -140,7 +150,7 @@ def test_after_midnight_kickoff_is_an_ordinary_match_of_its_own_date(i18n, names
             "⚽ <b>Ertaga, 29-noyabr, yakshanba</b>",
             "",
             "<b>🇪🇸 La Liga</b>",
-            "01:00 Real Madrid – Barselona",
+            "<code>01:00</code> ⚽ <code>Real Madrid</code> ⚽ <code>Barselona</code>",
             "",
             "🕐 Vaqt — Toshkent bo'yicha",
         ]
@@ -152,14 +162,22 @@ def test_penalty_shootout_is_shown(i18n, names):
         day_match("ucl", at(28, 1), "Real Madrid", "Arsenal", MatchStatus.FINISHED, (1, 1), (4, 3))
     ]
 
-    assert "Real Madrid <b>1:1</b> Arsenal (pen. 4:3)" in render(final, i18n, names)
+    assert "⚽ <code>Real Madrid 1:1</code> ⚽ <code>Arsenal</code> (pen. 4:3)" in render(
+        final, i18n, names
+    )
 
 
 @pytest.mark.parametrize(
     ("status", "line"),
     [
-        (MatchStatus.SUSPENDED, "⏸ Arsenal – Chelsi · to'xtatilgan"),
-        (MatchStatus.CANCELLED, "❌ Arsenal – Chelsi · bekor qilingan"),
+        (
+            MatchStatus.SUSPENDED,
+            "⚽ <code>Arsenal –:–</code> ⚽ <code>Chelsi</code> ⏸ to'xtatilgan",
+        ),
+        (
+            MatchStatus.CANCELLED,
+            "⚽ <code>Arsenal –:–</code> ⚽ <code>Chelsi</code> ❌ bekor qilingan",
+        ),
     ],
 )
 def test_interrupted_matches(i18n, names, status, line):
@@ -169,7 +187,10 @@ def test_interrupted_matches(i18n, names, status, line):
 def test_unknown_team_keeps_provider_name_and_is_escaped(i18n, names):
     text = render([day_match("ucl", at(28, 23), "Tom & Jerry <FC>", "Viking")], i18n, names)
 
-    assert "23:00 Tom &amp; Jerry &lt;FC&gt; – Viking" in text
+    assert (
+        "<code>23:00</code> ⚽ <code>Tom &amp; Jerry &lt;FC&gt;</code> ⚽ <code>Viking</code>"
+        in text
+    )
 
 
 # --- Bir nechta kun bitta xabarda
@@ -197,15 +218,15 @@ def test_two_days_in_one_message(i18n, names):
             "⚽ <b>Bugun, 28-noyabr, shanba</b>",
             "",
             f"<b>{epl}</b>",
-            "22:30 Ipsvich – Aston Villa",
+            "<code>22:30</code> ⚽ <code>Ipsvich</code> ⚽ <code>Aston Villa</code>",
             "",
             "⚽ <b>Ertaga, 29-noyabr, yakshanba</b>",
             "",
             f"<b>{epl}</b>",
-            "21:30 Arsenal – Man Siti",
+            "<code>21:30</code> ⚽ <code>Arsenal</code> ⚽ <code>Man Siti</code>",
             "",
             "<b>🇪🇸 La Liga</b>",
-            "01:00 Real Madrid – Alaves",
+            "<code>01:00</code> ⚽ <code>Real Madrid</code> ⚽ <code>Alaves</code>",
             "",
             "🕐 Vaqt — Toshkent bo'yicha",
         ]
@@ -231,7 +252,10 @@ def test_time_zone_note_only_when_a_kickoff_time_is_shown(i18n, names):
     ]
 
     # Faqat natijalar: soat ko'rsatilmagan, demak vaqt mintaqasi haqida izoh ham yo'q.
-    assert render(results, i18n, names).split("\n")[-1] == "⏸ Xetafe – Valensiya · ko'chirilgan"
+    assert (
+        render(results, i18n, names).split("\n")[-1]
+        == "⚽ <code>Xetafe –:–</code> ⚽ <code>Valensiya</code> ⏸ ko'chirilgan"
+    )
 
     in_play = [day_match("epl", at(28, 20), "Arsenal", "Manchester City", MatchStatus.LIVE, (1, 0))]
     assert render(in_play, i18n, names).split("\n")[-2:] == [
@@ -268,16 +292,20 @@ def test_club_logo_stands_before_the_club_name(i18n, names):
 
     lines = render(matches, i18n, names).split("\n")
 
-    assert f"{logo('11')} Everton <b>0:2</b> {logo('12')} Liverpul" in lines
-    assert f"🔴 {logo('13')} Arsenal <b>1:0</b> {logo('14')} Man Siti" in lines
-    assert f"23:00 {logo('15')} Real Madrid – {logo('16')} Barselona" in lines
+    assert f"{logo('11')} <code>Everton 0:2</code> {logo('12')} <code>Liverpul</code>" in lines
+    assert f"{logo('13')} <code>Arsenal 1:0</code> {logo('14')} <code>Man Siti</code> 🔴" in lines
+    home, away = f"{logo('15')} <code>Real Madrid</code>", f"{logo('16')} <code>Barselona</code>"
+    assert f"<code>23:00</code> {home} {away}" in lines
 
 
 def test_club_without_logo_is_shown_by_name_only(i18n, names):
     # Emoji hali yaratilmagan klub: nomi o'zi qoladi, yonidagi klub logotipi bilan.
     half = with_logos(day_match("laliga", at(28, 23), "Real Madrid", "Barcelona"), None, "16")
 
-    assert f"23:00 Real Madrid – {logo('16')} Barselona" in render([half], i18n, names)
+    assert (
+        f"<code>23:00</code> ⚽ <code>Real Madrid</code> {logo('16')} <code>Barselona</code>"
+        in render([half], i18n, names)
+    )
 
 
 # --- Qisqa nomlar: o'yin qatori telefonda bitta satrga sig'ishi uchun
@@ -286,9 +314,9 @@ def test_club_without_logo_is_shown_by_name_only(i18n, names):
 @pytest.mark.parametrize(
     ("locale", "line"),
     [
-        ("uz", "23:00 MYU – Brentford"),
-        ("ru", "23:00 МЮ – Брентфорд"),
-        ("en", "23:00 Man Utd – Brentford"),
+        ("uz", "<code>23:00</code> ⚽ <code>MYU</code> ⚽ <code>Brentford</code>"),
+        ("ru", "<code>23:00</code> ⚽ <code>МЮ</code> ⚽ <code>Брентфорд</code>"),
+        ("en", "<code>23:00</code> ⚽ <code>Man Utd</code> ⚽ <code>Brentford</code>"),
     ],
 )
 def test_long_club_names_are_shortened_in_match_lines(i18n, names, locale, line):
@@ -314,3 +342,117 @@ def test_short_names_are_really_shorter():
             if key.endswith("_short"):
                 full = fields.get(key.removesuffix("_short"), name)
                 assert len(short) < len(full), (name, key)
+
+
+# --- Tekis ustun va Telegram limiti
+
+
+def shown(line: str) -> str:
+    """Qatorning ekrandagi ko'rinishi: har bir logotip bitta belgi, formatlash teglari yo'q."""
+    line = re.sub(r"<tg-emoji[^>]*>.</tg-emoji>", "⚽", line)
+    return re.sub(r"</?code>", "", line)
+
+
+def test_second_club_starts_at_the_same_place_in_every_row(i18n, names):
+    upcoming = [
+        day_match("epl", at(28, 22), "Nottingham Forest", "Chelsea"),
+        day_match("epl", at(28, 22), "Manchester United", "Brentford"),
+        day_match("epl", at(28, 23), "Leeds", "Coventry"),
+    ]
+
+    lines = render(upcoming, i18n, names).split("\n")[3:6]
+
+    # Uy egasi nomi eng uzun nomgacha bo'shliq bilan to'ldiriladi (teng enli shriftda).
+    assert lines == [
+        "<code>22:00</code> ⚽ <code>Nottingem</code> ⚽ <code>Chelsi</code>",
+        "<code>22:00</code> ⚽ <code>MYU      </code> ⚽ <code>Brentford</code>",
+        "<code>23:00</code> ⚽ <code>Lids     </code> ⚽ <code>Koventri</code>",
+    ]
+    assert {shown(line).rindex("⚽") for line in lines} == {18}
+
+
+def test_score_stays_between_the_clubs_and_forms_a_column(i18n, names):
+    results = [
+        day_match(
+            "ucl", at(27, 1), "Sporting CP", "Manchester United", MatchStatus.FINISHED, (2, 2)
+        ),
+        day_match("ucl", at(27, 1), "Paris Saint Germain", "Roma", MatchStatus.FINISHED, (10, 0)),
+        day_match("ucl", at(27, 1), "Lille", "Liverpool", MatchStatus.FINISHED, (2, 1)),
+    ]
+
+    lines = [
+        shown(line)
+        for line in render(results, i18n, names, day=date(2026, 11, 27)).split("\n")[3:6]
+    ]
+
+    # Hisob klublar orasida; ikki xonali hisob bo'lsa, ustun shunga qarab kengayadi.
+    assert lines == [
+        "⚽ Sporting 2:2  ⚽ MYU",
+        "⚽ PSJ      10:0 ⚽ Roma",
+        "⚽ Lill     2:1  ⚽ Liverpul",
+    ]
+
+
+def test_padding_shrinks_instead_of_breaking_a_long_row(i18n, names):
+    upcoming = [
+        day_match("laliga", at(28, 22), "Real Madrid", "Alavés"),
+        day_match("laliga", at(28, 23), "Celta de Vigo", "Villarreal"),
+    ]
+
+    lines = [shown(line) for line in render(upcoming, i18n, names).split("\n")[3:5]]
+
+    # "Selta" to'liq to'ldirilsa, qator telefon eniga sig'maydi: bo'shliq bitta harfga qisqaradi.
+    assert lines == [
+        "22:00 ⚽ Real Madrid ⚽ Alaves",
+        "23:00 ⚽ Selta      ⚽ Vilyarreal",
+    ]
+    assert all(len(re.sub(r"[⚽ ]", "", line)) <= 25 for line in lines)
+
+
+def test_separator_between_clubs_takes_room_from_the_padding(i18n, names, monkeypatch):
+    monkeypatch.setattr(views, "UPCOMING_SEPARATOR", " -")
+    upcoming = [
+        day_match("epl", at(28, 22), "Nottingham Forest", "Chelsea"),
+        day_match("epl", at(28, 23), "Ipswich", "Aston Villa"),
+    ]
+
+    lines = [shown(line) for line in render(upcoming, i18n, names).split("\n")[3:5]]
+
+    # Belgi ikki harf joy oladi: uzun juftlikda to'ldirish shuncha qisqaradi.
+    assert lines == [
+        "22:00 ⚽ Nottingem - ⚽ Chelsi",
+        "23:00 ⚽ Ipsvich - ⚽ Aston Villa",
+    ]
+
+
+def test_upcoming_and_played_rows_each_keep_their_own_columns(i18n, names):
+    lines = [shown(line) for line in render(MATCHES, i18n, names).split("\n")]
+
+    # Hisobli o'yinlar soatsiz, logotip bilan boshlanadi; boshlanmaganlari — soat bilan.
+    assert lines[6:9] == [
+        "⚽ Everton 0:2 ⚽ Liverpul",
+        "⚽ Arsenal 1:0 ⚽ Man Siti 🔴",
+        "⚽ Fulxem  –:– ⚽ Bornmut 🔴",
+    ]
+    assert lines[11:13] == [
+        "⚽ Xetafe –:– ⚽ Valensiya ⏸ ko'chirilgan",
+        "23:30 ⚽ Real Madrid ⚽ Barselona",
+    ]
+
+
+def test_very_busy_days_drop_the_fixed_width_format_to_keep_logos(i18n, names):
+    # 40 ta o'yin: har birida ikki logotip va bitta teng enli ustun — 100 talik limitdan oshadi.
+    many = [
+        day_match("epl", at(28, 23), f"Klub {index}", f"Klub {index + 50}").model_copy(
+            update={"home_emoji": str(index), "away_emoji": str(index + 50)}
+        )
+        for index in range(40)
+    ]
+
+    text = render(many, i18n, names)
+
+    assert "<code>" not in text
+    assert text.count("<tg-emoji") == 80
+    # Teng enli formatsiz bo'shliq bilan to'ldirishning ma'nosi yo'q: ortiqcha bo'shliqlar olinadi.
+    assert "  " not in text
+    assert "23:00 <tg-emoji" in text

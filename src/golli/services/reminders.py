@@ -25,11 +25,18 @@ from aiogram.exceptions import (
     TelegramForbiddenError,
     TelegramRetryAfter,
 )
+from aiogram.types import InputRichMessage
 from redis.asyncio import Redis
 from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from golli.bot.notification_view import render_morning, render_pre_match, render_result
+from golli.bot import rich_view
+from golli.bot.notification_view import (
+    morning_days,
+    render_morning,
+    render_pre_match,
+    render_result,
+)
 from golli.db.models import Match, Notification
 from golli.db.notifications import (
     FAILED,
@@ -174,9 +181,7 @@ class Sender:
                 return 0, 0.0
             prepared = await self._prepare(session, batch, now)
 
-        outcomes = await asyncio.gather(
-            *(self._deliver(notification, text, silent) for notification, text, silent in prepared)
-        )
+        outcomes = await asyncio.gather(*(self._deliver(*item) for item in prepared))
         await self._record(outcomes, now)
         return len(batch), max(outcome.retry_after for outcome in outcomes)
 
@@ -195,8 +200,12 @@ class Sender:
 
     async def _prepare(
         self, session: AsyncSession, batch: list[tuple[Notification, str | None]], now: datetime
-    ) -> list[tuple[Notification, str | None, bool]]:
-        """Har bir xabar uchun (xabar, matn yoki None, ovozsizmi). None — yuborilmaydi."""
+    ) -> list[tuple[Notification, str | None, bool, InputRichMessage | None]]:
+        """Har bir xabar uchun (xabar, matn yoki None, ovozsizmi, jadvalli ko'rinishi).
+
+        Matn None bo'lsa, xabar yuborilmaydi. Jadvalli ko'rinish faqat ertalabki xabarda bor;
+        Telegram uni qabul qilmasa, o'rniga matn yuboriladi.
+        """
         match_ids = {n.match_id for n, _ in batch if n.match_id is not None}
         matches = (
             {match.id: match for match in await load_matches(session, Match.id.in_(match_ids))}
@@ -209,6 +218,7 @@ class Sender:
         for notification, lang in batch:
             t = self._i18n.translator(lang)
             text: str | None = None
+            rich: InputRichMessage | None = None
             silent = False
             match = matches.get(notification.match_id)
             if notification.kind == KIND_PRE_MATCH:
@@ -227,7 +237,15 @@ class Sender:
                 coming = await self._favorite_matches_ahead(session, notification, now)
                 if coming:
                     text = render_morning(notification.day, coming, now, t, self._names, self._tz)
-            prepared.append((notification, text, silent))
+                    rich = rich_view.morning_message(
+                        morning_days(coming, self._tz),
+                        today=notification.day,
+                        now=now,
+                        t=t,
+                        names=self._names,
+                        tz=self._tz,
+                    )
+            prepared.append((notification, text, silent, rich))
         return prepared
 
     async def _favorite_matches_ahead(
@@ -244,15 +262,30 @@ class Sender:
             Match.kickoff_at < morning_horizon(notification.day, self._tz),
         )
 
+    async def _send(
+        self, user_id: int, text: str, silent: bool, rich: InputRichMessage | None
+    ) -> None:
+        if rich is not None:
+            try:
+                await self._bot.send_rich_message(user_id, rich, disable_notification=silent)
+                return
+            except TelegramBadRequest as exc:
+                logger.warning("Jadvalli xabar qabul qilinmadi, oddiy matn yuboriladi: %s", exc)
+        await self._bot.send_message(user_id, text, disable_notification=silent)
+
     async def _deliver(
-        self, notification: Notification, text: str | None, silent: bool
+        self,
+        notification: Notification,
+        text: str | None,
+        silent: bool,
+        rich: InputRichMessage | None = None,
     ) -> _Outcome:
         outcome = _Outcome(notification.id, notification.user_id, SENT)
         if text is None:
             outcome.status = SKIPPED
             return outcome
         try:
-            await self._bot.send_message(notification.user_id, text, disable_notification=silent)
+            await self._send(notification.user_id, text, silent, rich)
         except TelegramRetryAfter as exc:
             # Limitdan oshildi: xabar navbatda qoladi, Telegram aytgan vaqtcha kutiladi.
             outcome.status, outcome.retry_after = PENDING, float(exc.retry_after)

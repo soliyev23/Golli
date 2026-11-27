@@ -2,7 +2,10 @@
 
 from datetime import UTC, date, datetime
 
-from golli.providers.base import MatchData, MatchStatus, ProviderError, TeamData
+from aiogram.methods import SendRichMessage
+from aiogram.types import InputRichBlockTable, InputRichMessage, RichTextCustomEmoji
+
+from golli.providers.base import MatchData, MatchStatus, ProviderError, StandingData, TeamData
 
 # Soxta Telegram (conftest.RecordingSession) botga shu username'ni beradi.
 BOT_USERNAME = "golli_test_bot"
@@ -67,6 +70,9 @@ class FakeProvider:
         self.season: dict[str, list[MatchData]] = {}
         self.days: dict[tuple[str, date], list[MatchData]] = {}
         self.calls: list[tuple] = []
+        # Jadval so'rovlari alohida yoziladi: o'yinlar bo'yicha so'rovlar tartibini buzmasin.
+        self.standings: dict[str, list[StandingData]] = {}
+        self.standings_calls: list[tuple[str, int]] = []
         self.fail = False
 
     def set_day(self, *items: MatchData) -> None:
@@ -89,3 +95,63 @@ class FakeProvider:
         if self.fail:
             raise ProviderError("sinov xatosi")
         return self.days.get((competition, day), [])
+
+    async def fetch_standings(self, competition: str, season: int) -> list[StandingData]:
+        self.standings_calls.append((competition, season))
+        if self.fail:
+            raise ProviderError("sinov xatosi")
+        return self.standings.get(competition, [])
+
+
+def standing(
+    position: int, name: str, points: int, *, played: int = 10, goals=(15, 5)
+) -> StandingData:
+    """Jadval qatori: g'alaba/durang/mag'lubiyatlar ochkoga mos qilib to'ldiriladi."""
+    wins, draws = divmod(points, 3)
+    return StandingData(
+        team=team(name),
+        position=position,
+        played=played,
+        wins=wins,
+        draws=draws,
+        losses=played - wins - draws,
+        goals_for=goals[0],
+        goals_against=goals[1],
+        points=points,
+    )
+
+
+# --- Jadvalli (rich) xabarlarni testda o'qish
+
+
+def _inline(text) -> str:
+    """Kataklar va sarlavhalardagi matn; maxsus emoji (logotip) "<identifikator>" ko'rinishida."""
+    if text is None:
+        return ""
+    if isinstance(text, str):
+        return text
+    if isinstance(text, list):
+        return "".join(_inline(part) for part in text)
+    if isinstance(text, RichTextCustomEmoji):
+        return f"<{text.custom_emoji_id}>"
+    return _inline(text.text)
+
+
+def rich_lines(rich: InputRichMessage) -> list[str]:
+    """Jadvalli xabar satrlari: sarlavha "### matn", jadval qatori "katak | katak | katak"."""
+    lines = []
+    for block in rich.blocks:
+        if isinstance(block, InputRichBlockTable):
+            lines += [" | ".join(_inline(cell.text) for cell in row) for row in block.cells]
+        elif hasattr(block, "size"):
+            lines.append(f"{'#' * block.size} {_inline(block.text)}")
+        else:
+            lines.append(_inline(block.text))
+    return lines
+
+
+def text_of(request) -> str:
+    """Bot yuborgan xabar matni: oddiy xabarniki ham, jadvalli xabarniki ham."""
+    if isinstance(request, SendRichMessage):
+        return "\n".join(rich_lines(request.rich_message))
+    return request.text

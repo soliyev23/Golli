@@ -2,11 +2,16 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from aiogram.exceptions import TelegramForbiddenError, TelegramNetworkError, TelegramRetryAfter
-from aiogram.methods import SendMessage
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramForbiddenError,
+    TelegramNetworkError,
+    TelegramRetryAfter,
+)
+from aiogram.methods import SendMessage, SendRichMessage
 from sqlalchemy import select, update
 
-from factories import FakeProvider, match
+from factories import FakeProvider, match, rich_lines, text_of
 from golli.db.favorites import toggle_favorite
 from golli.db.matches import upsert_matches
 from golli.db.models import Match, Notification, Team, User
@@ -47,8 +52,9 @@ async def queued(db) -> list[tuple[int, str]]:
     return sorted((n.user_id, n.kind) for n in await queue(db))
 
 
-def sent_messages(bot) -> list[SendMessage]:
-    return [r for r in bot.session.requests if isinstance(r, SendMessage)]
+def sent_messages(bot) -> list[SendMessage | SendRichMessage]:
+    """Bot yuborgan xabarlar: oddiy matnli ham, jadvalli (ertalabki eslatma) ham."""
+    return [r for r in bot.session.requests if isinstance(r, SendMessage | SendRichMessage)]
 
 
 @pytest.fixture
@@ -272,47 +278,28 @@ async def test_morning_message_lists_all_favourite_matches(db, planner, sender, 
 
     await sender.process_batch(at(28, 7, 0))
 
-    # Tungi o'yin o'z sanasi ostida; ertaga kechqurungi o'yin (Everton) bu xabarga kirmaydi.
+    # Jadvalli xabar. Tungi o'yin o'z sanasi ostida; ertaga kechqurungi o'yin (Everton) kirmaydi.
     [message] = sent_messages(bot)
-    assert message.text == "\n".join(
-        [
-            "☀️ <b>Sevimli klubingiz o'ynaydi</b>",
-            "",
-            "⚽ <b>Bugun, 28-noyabr, shanba</b>",
-            "",
-            f"<b>{i18n.translate('uz', 'competition-epl')}</b>",
-            "20:00 Arsenal – Man Siti",
-            "",
-            "⚽ <b>Ertaga, 29-noyabr, yakshanba</b>",
-            "",
-            "<b>🇪🇸 La Liga</b>",
-            "01:00 Real Madrid – Barselona",
-            "",
-            "🕐 Vaqt — Toshkent bo'yicha",
-        ]
-    )
+    assert isinstance(message, SendRichMessage)
+    assert rich_lines(message.rich_message) == [
+        "### ☀️ Sevimli klubingiz o'ynaydi",
+        "#### ⚽ Bugun, 28-noyabr, shanba",
+        f"##### {i18n.translate('uz', 'competition-epl')}",
+        "20:00 | ⚽ Arsenal | – | ⚽ Man Siti",
+        "#### ⚽ Ertaga, 29-noyabr, yakshanba",
+        "##### 🇪🇸 La Liga",
+        "01:00 | ⚽ Real Madrid | – | ⚽ Barselona",
+        "🕐 Vaqt — Toshkent bo'yicha",
+    ]
     assert not message.disable_notification
 
 
 @pytest.mark.parametrize(
     ("lang", "lines"),
     [
-        (
-            "uz",
-            ["☀️ <b>Sevimli klubingiz o'ynaydi</b>", "", "⚽ <b>Ertaga, 29-noyabr, yakshanba</b>"],
-        ),
-        (
-            "ru",
-            ["☀️ <b>Играет ваш любимый клуб</b>", "", "⚽ <b>Завтра, 29 ноября, воскресенье</b>"],
-        ),
-        (
-            "en",
-            [
-                "☀️ <b>Your favourite club is playing</b>",
-                "",
-                "⚽ <b>Tomorrow, Sunday, 29 November</b>",
-            ],
-        ),
+        ("uz", ["### ☀️ Sevimli klubingiz o'ynaydi", "#### ⚽ Ertaga, 29-noyabr, yakshanba"]),
+        ("ru", ["### ☀️ Играет ваш любимый клуб", "#### ⚽ Завтра, 29 ноября, воскресенье"]),
+        ("en", ["### ☀️ Your favourite club is playing", "#### ⚽ Tomorrow, Sunday, 29 November"]),
     ],
 )
 async def test_morning_message_about_night_match_names_its_date(
@@ -324,8 +311,26 @@ async def test_morning_message_about_night_match_names_its_date(
     await sender.process_batch(at(28, 7, 0))
 
     [message] = sent_messages(bot)
-    assert message.text.split("\n")[:3] == lines
-    assert "01:00 " in message.text
+    shown = rich_lines(message.rich_message)
+    assert shown[:2] == lines
+    assert shown[3].startswith("01:00 | ")
+
+
+async def test_morning_message_falls_back_to_plain_text(db, planner, sender, bot, weekend):
+    await add_user(db, 1, "Arsenal")
+    await planner.plan(at(28, 7, 0))
+    bot.session.method_failures[SendRichMessage] = lambda method: TelegramBadRequest(
+        method=method, message="Bad Request: rich messages are not supported"
+    )
+
+    await sender.process_batch(at(28, 7, 0))
+
+    # Telegram jadvalli xabarni qabul qilmadi: o'sha eslatma oddiy matnda ketadi.
+    rejected, plain = sent_messages(bot)
+    assert isinstance(rejected, SendRichMessage) and isinstance(plain, SendMessage)
+    assert plain.text.startswith("☀️ <b>Sevimli klubingiz o'ynaydi</b>")
+    assert "<code>Arsenal</code>" in plain.text
+    assert [n.status for n in await queue(db)] == ["sent"]
 
 
 async def test_night_match_is_not_announced_again_next_morning(db, planner, sender, bot, weekend):
@@ -463,9 +468,9 @@ async def test_full_flow_from_provider_to_telegram(
     provider.set_day(match("m1", kickoff, status=MatchStatus.FINISHED, score=(2, 1)))
     await tick(kickoff + timedelta(minutes=105))
 
-    titles = [m.text.split("\n")[0] for m in sent_messages(bot)]
+    titles = [text_of(m).split("\n")[0] for m in sent_messages(bot)]
     assert titles == [
-        "☀️ <b>Sevimli klubingiz o'ynaydi</b>",
+        "### ☀️ Sevimli klubingiz o'ynaydi",
         "⏰ <b>O'yinga 1 soat qoldi</b>",
         "🏁 <b>O'yin tugadi</b>",
     ]

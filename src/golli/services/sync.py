@@ -2,7 +2,8 @@
 
 Worker har daqiqada tick() ni chaqiradi. API'ga so'rov faqat kerak bo'lganda ketadi:
   - mavsum taqvimi — kuniga bir marta, ertalab soat 06:00 dan keyin;
-  - bugungi o'yinlar holati — faqat belgilangan nuqtalarda (poll_due ga qarang).
+  - bugungi o'yinlar holati — faqat belgilangan nuqtalarda (poll_due ga qarang);
+  - turnir jadvallari — kuniga bir marta va turnir o'yini tugagach.
 Bepul tarifda kuniga 100 ta so'rov bor, shuning uchun jadval ataylab siyrak.
 """
 
@@ -15,7 +16,8 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from golli.competitions import COMPETITIONS
-from golli.db.matches import has_unfinished, unfinished_kickoffs, upsert_matches
+from golli.db.matches import has_finished, has_unfinished, unfinished_kickoffs, upsert_matches
+from golli.db.standings import replace_standings
 from golli.providers.base import FootballProvider, ProviderError
 from golli.services.days import current_season
 from golli.services.schedule import ScheduleCache
@@ -23,6 +25,7 @@ from golli.services.schedule import ScheduleCache
 logger = logging.getLogger(__name__)
 
 LAST_SEASON_SYNC_KEY = "golli:sync:season:last"
+LAST_STANDINGS_SYNC_KEY = "golli:sync:standings:{competition}"
 
 # Mavsum taqvimi kuniga bir marta, shu soatdan keyin sinxronlanadi (bot vaqt mintaqasida).
 # Erta tongda o'yin bo'lmaydi, tungi o'yinlar natijasi va ertalabki xabar uchun taqvim
@@ -35,6 +38,11 @@ SEASON_RETRY_DELAY = timedelta(minutes=30)
 # o'yin holatini o'zi yangilamayotgan bo'lsa, limit behuda sarflanmasin.
 STALE_RESYNC_INTERVAL = timedelta(hours=12)
 STALE_LOOKBACK = timedelta(days=3)
+
+# Provayder jadvalni o'yin tugaganidan keyin bir soat ichida yangilaydi. Shuning uchun
+# jadval o'yin boshlanganidan shuncha vaqt o'tgach qayta olinadi (o'yin ~2 soat + zaxira).
+STANDINGS_DELAY = timedelta(hours=3, minutes=15)
+STANDINGS_RETRY_DELAY = timedelta(minutes=30)
 
 # O'yin boshlanganidan keyin shu vaqtgacha holati kuzatiladi; undan eskisini
 # kunlik mavsum sinxronizatsiyasi tuzatadi.
@@ -85,6 +93,7 @@ class Syncer:
         self._redis = redis
         self._tz = tz
         self._season_retry_after: datetime | None = None
+        self._standings_retry_after: datetime | None = None
         self._last_poll: dict[str, datetime] = {}
         self._cache_day = None
 
@@ -94,6 +103,7 @@ class Syncer:
         for name, step in (
             ("mavsum sinxronizatsiyasi", self.sync_season_if_due),
             ("jonli yangilash", self.refresh_live),
+            ("turnir jadvallari", self.sync_standings_if_due),
             ("kesh", self.rebuild_cache_if_day_changed),
         ):
             try:
@@ -145,7 +155,10 @@ class Syncer:
         )
 
     async def _last_season_sync(self) -> datetime | None:
-        raw = await self._redis.get(LAST_SEASON_SYNC_KEY)
+        return await self._last_sync(LAST_SEASON_SYNC_KEY)
+
+    async def _last_sync(self, key: str) -> datetime | None:
+        raw = await self._redis.get(key)
         if raw is None:
             return None
         return datetime.fromisoformat(raw.decode() if isinstance(raw, bytes) else raw)
@@ -183,6 +196,50 @@ class Syncer:
                 )
         if refreshed:
             await self._rebuild_cache(now)
+
+    # --- Turnir jadvallari
+
+    async def sync_standings_if_due(self, now: datetime) -> None:
+        if self._standings_retry_after is not None and now < self._standings_retry_after:
+            return
+        for competition in COMPETITIONS:
+            if not await self._standings_due(competition, now):
+                continue
+            try:
+                await self.sync_standings(competition, now)
+            except ProviderError:
+                # Provayder javob bermayapti: qolgan turnirlar uchun ham limit sarflanmaydi.
+                self._standings_retry_after = now + STANDINGS_RETRY_DELAY
+                raise
+        self._standings_retry_after = None
+
+    async def _standings_due(self, competition: str, now: datetime) -> bool:
+        last = await self._last_sync(LAST_STANDINGS_SYNC_KEY.format(competition=competition))
+        # Kuniga bir marta (mavsum taqvimi bilan birga) — ochko jarimasi kabi o'zgarishlar va
+        # provayder kechikishi uchun.
+        if last is None or sync_day(last, self._tz) != sync_day(now, self._tz):
+            return True
+        # Oxirgi olinganidan beri o'yin tugagan va provayder jadvalni yangilashga ulgurgan.
+        async with self._session_factory() as session:
+            return await has_finished(
+                session, competition, last - STANDINGS_DELAY, now - STANDINGS_DELAY
+            )
+
+    async def sync_standings(self, competition: str, now: datetime) -> None:
+        rows = await self._provider.fetch_standings(competition, current_season(now))
+        async with self._session_factory.begin() as session:
+            await replace_standings(
+                session, self._provider.name, competition, current_season(now), rows, now
+            )
+        await self._redis.set(
+            LAST_STANDINGS_SYNC_KEY.format(competition=competition), now.isoformat()
+        )
+        logger.info(
+            "%s jadvali yangilandi: %s ta qator. Limit qoldig'i: %s",
+            competition,
+            len(rows),
+            getattr(self._provider, "quota_remaining", None),
+        )
 
     # --- Kesh
 

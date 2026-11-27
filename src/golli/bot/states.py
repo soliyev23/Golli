@@ -18,6 +18,12 @@ class FavoritesFlow(StatesGroup):
     clubs = State()
 
 
+class TournamentsFlow(StatesGroup):
+    """Turnirlar bo'limi: liga tugmasi bosilsa, shu liganing jadvali ko'rsatiladi."""
+
+    leagues = State()
+
+
 async def open_favorites(state: FSMContext, origin: str) -> None:
     """Foydalanuvchini ligalar ro'yxatiga o'tkazadi va qayerdan kelganini eslab qoladi."""
     await state.set_state(FavoritesFlow.leagues)

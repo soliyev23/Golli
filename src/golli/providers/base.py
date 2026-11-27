@@ -47,6 +47,23 @@ class MatchData:
     away_penalties: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class StandingData:
+    """Turnir jadvalining bitta qatori."""
+
+    team: TeamData
+    position: int
+    played: int
+    wins: int
+    draws: int
+    losses: int
+    goals_for: int
+    goals_against: int
+    points: int
+    # Turnir bir nechta guruhga bo'lingan bo'lsa — guruh nomi.
+    group: str | None = None
+
+
 class FootballProvider(Protocol):
     name: str
 
@@ -56,4 +73,8 @@ class FootballProvider(Protocol):
 
     async def fetch_day(self, competition: str, day: date) -> list[MatchData]:
         """Turnirning berilgan UTC sanasida boshlanadigan o'yinlari, joriy hisobi bilan."""
+        ...
+
+    async def fetch_standings(self, competition: str, season: int) -> list[StandingData]:
+        """Turnirning joriy jadvali, o'rinlar tartibida."""
         ...

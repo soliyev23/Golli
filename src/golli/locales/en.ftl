@@ -10,6 +10,7 @@ cmd-help = Help
 
 menu-matches = ⚽ Upcoming matches
 menu-recent = 🏁 Recent matches
+menu-tournaments = 🏆 Tournaments
 menu-favorites = ⭐ Favourite clubs
 menu-language = 🌐 Language
 menu-settings = ⚙️ Settings
@@ -41,6 +42,8 @@ help-text =
 
     🏁 <b>Recent matches</b> — results from the last two match days.
 
+    🏆 <b>Tournaments</b> — Champions League, Premier League and La Liga tables.
+
     ⚙️ <b>Settings</b> — favourite clubs and language.
 
     ⭐ <b>Favourite clubs</b> — pick a club and I'll remind you about its matches:
@@ -57,6 +60,7 @@ help-text =
 unknown-message = I didn't get that. Please use the buttons below 👇
 menu-main = 🏠 Main menu
 buttons-outdated = These buttons are outdated. Please use the menu below.
+choose-hint = Pick from the buttons below 👇
 settings-text =
     ⚙️ <b>Settings</b>
 
@@ -85,6 +89,21 @@ status-suspended = suspended
 status-cancelled = cancelled
 penalties = pens { $home }:{ $away }
 
+## Tournaments and tables
+
+# Date and time format (Unicode CLDR pattern): 27 November, 06:05
+datetime-format = d MMMM, HH:mm
+tournaments-text =
+    🏆 <b>Tournaments</b>
+
+    Choose a tournament to see its table 👇
+# Table column headings: monospace font, so they are short (2 characters at most).
+standings-col-club = Club
+standings-col-played = P
+standings-col-points = Pt
+standings-updated = 🕐 Updated: { $time }
+standings-empty = The table hasn't been loaded yet. Please try again a bit later.
+
 ## Favourite clubs
 
 favorites-title = ⭐ <b>Favourite clubs</b>
@@ -95,7 +114,6 @@ favorites-pick = Tap a club to pick it. Tap again to remove it.
 favorites-added = ✅ Added: { $team }
 favorites-removed = ❌ Removed: { $team }
 favorites-no-teams = This league's clubs haven't been loaded yet.
-favorites-choose-hint = Pick from the buttons below 👇
 favorites-saved = ⭐ <b>Your favourite clubs:</b>
 favorites-saved-note = I'll remind you about their matches.
 favorites-none-saved = No club picked. You can do it any time via ⚙️ Settings → ⭐ Favourite clubs.

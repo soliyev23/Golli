@@ -2,7 +2,16 @@ from aiogram import Dispatcher
 from aiogram.fsm.storage.base import BaseStorage
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from golli.bot.handlers import favorites, language, matches, membership, menu, settings, start
+from golli.bot.handlers import (
+    favorites,
+    language,
+    matches,
+    membership,
+    menu,
+    settings,
+    start,
+    tournaments,
+)
 from golli.bot.middlewares import DbSessionMiddleware, UserMiddleware
 from golli.i18n import I18n
 from golli.services.schedule import ScheduleCache
@@ -34,6 +43,7 @@ def create_dispatcher(
         membership.router,
         matches.router,
         settings.router,
+        tournaments.router,
         favorites.router,
         menu.router,
     )

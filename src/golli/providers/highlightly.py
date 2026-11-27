@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from golli.providers.base import MatchData, MatchStatus, ProviderError, TeamData
+from golli.providers.base import MatchData, MatchStatus, ProviderError, StandingData, TeamData
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,22 @@ def parse_match(raw: Mapping[str, Any], competition: str) -> MatchData:
     )
 
 
+def parse_standing(raw: Mapping[str, Any], group: str | None) -> StandingData:
+    total = raw["total"]
+    return StandingData(
+        team=_parse_team(raw["team"]),
+        position=int(raw["position"]),
+        played=int(total["games"]),
+        wins=int(total["wins"]),
+        draws=int(total["draws"]),
+        losses=int(total["loses"]),
+        goals_for=int(total["scoredGoals"]),
+        goals_against=int(total["receivedGoals"]),
+        points=int(raw["points"]),
+        group=group,
+    )
+
+
 class HighlightlyProvider:
     name = "highlightly"
 
@@ -94,6 +110,27 @@ class HighlightlyProvider:
     async def fetch_day(self, competition: str, day: date) -> list[MatchData]:
         return await self._fetch_matches(competition, {"date": day.isoformat()})
 
+    async def fetch_standings(self, competition: str, season: int) -> list[StandingData]:
+        payload = await self._request(
+            "/standings", {"leagueId": LEAGUE_IDS[competition], "season": season}
+        )
+        try:
+            groups = [(group.get("name"), list(group["standings"])) for group in payload["groups"]]
+        except (KeyError, TypeError, AttributeError) as exc:
+            raise ProviderError(f"Highlightly jadvali kutilgan tuzilmada emas: {exc!r}") from exc
+
+        # Bitta guruhli turnirda (liga) guruh nomi liga nomining o'zi — u kerak emas.
+        named = len(groups) > 1
+        rows: list[StandingData] = []
+        for name, standings in groups:
+            for raw in standings:
+                try:
+                    rows.append(parse_standing(raw, name if named else None))
+                except (KeyError, TypeError, ValueError) as exc:
+                    # Yarimta jadval noto'g'ri o'rinlarni ko'rsatadi: butun javob rad etiladi.
+                    raise ProviderError(f"Highlightly jadval qatori buzuq: {exc!r}") from exc
+        return rows
+
     async def _fetch_matches(self, competition: str, query: dict[str, Any]) -> list[MatchData]:
         params = {"leagueId": LEAGUE_IDS[competition], **query, "limit": PAGE_SIZE}
         matches: list[MatchData] = []
@@ -111,6 +148,21 @@ class HighlightlyProvider:
                 return matches
 
     async def _get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Sahifalangan ro'yxat ("data" va "pagination" bilan)."""
+        payload = await self._request(path, params)
+        try:
+            if not isinstance(payload["data"], list):
+                raise TypeError("data ro'yxat emas")
+            int(payload["pagination"]["totalCount"])
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ProviderError(f"Highlightly javobi kutilgan tuzilmada emas: {exc!r}") from exc
+
+        plan_message = (payload.get("plan") or {}).get("message", "")
+        if plan_message and "All data available" not in plan_message:
+            logger.warning("Highlightly tarif ogohlantirishi: %s", plan_message)
+        return payload
+
+    async def _request(self, path: str, params: dict[str, Any]) -> Any:
         try:
             response = await self._client.get(path, params=params, headers=self._headers)
         except httpx.HTTPError as exc:
@@ -126,14 +178,6 @@ class HighlightlyProvider:
                 f"(limit qoldig'i: {self.quota_remaining}): {response.text[:200]}"
             )
         try:
-            payload = response.json()
-            if not isinstance(payload["data"], list):
-                raise TypeError("data ro'yxat emas")
-            int(payload["pagination"]["totalCount"])
-        except (ValueError, KeyError, TypeError) as exc:
-            raise ProviderError(f"Highlightly javobi kutilgan tuzilmada emas: {exc!r}") from exc
-
-        plan_message = (payload.get("plan") or {}).get("message", "")
-        if plan_message and "All data available" not in plan_message:
-            logger.warning("Highlightly tarif ogohlantirishi: %s", plan_message)
-        return payload
+            return response.json()
+        except ValueError as exc:
+            raise ProviderError(f"Highlightly javobi JSON emas: {exc!r}") from exc
