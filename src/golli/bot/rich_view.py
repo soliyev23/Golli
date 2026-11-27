@@ -23,7 +23,6 @@ from aiogram.types import (
 from babel.dates import format_datetime
 
 from golli.bot import views
-from golli.bot.standings_view import DIFFERENCE_LABEL
 from golli.competitions import COMPETITIONS
 from golli.db.standings import StandingRow
 from golli.i18n import Translator
@@ -38,6 +37,7 @@ DAY_SIZE = 4
 LEAGUE_SIZE = 5
 # Boshlanmagan o'yinda klublar orasida turadigan belgi.
 VERSUS = "–"
+NBSP = "\u00a0"
 
 RichText = str | list | RichTextBold | RichTextCustomEmoji
 
@@ -59,12 +59,18 @@ def _cell(
     )
 
 
-def _club(name: str, emoji_id: str | None) -> RichText:
-    """Klub logotipi va nomi. Logotipi yo'q klubda ham o'rni band: ustun tekis tursin."""
+def _club(name: str, emoji_id: str | None, *, nowrap: bool = False) -> RichText:
+    """Klub logotipi va nomi. Logotipi yo'q klubda ham o'rni band: ustun tekis tursin.
+
+    `nowrap` — bo'shliqlar bo'linmaydigan bo'shliqqa almashtiriladi: tor ustunda ham
+    "Real Madrid" ikki qatorga bo'linib ketmaydi.
+    """
+    space = NBSP if nowrap else " "
+    name = name.replace(" ", space)
     if emoji_id is None:
-        return f"{FALLBACK_EMOJI} {name}"
+        return f"{FALLBACK_EMOJI}{space}{name}"
     logo = RichTextCustomEmoji(custom_emoji_id=emoji_id, alternative_text=FALLBACK_EMOJI)
-    return [logo, f" {name}"]
+    return [logo, f"{space}{name}"]
 
 
 def _score(match: DayMatch, t: Translator) -> str:
@@ -184,11 +190,12 @@ def standings_message(
     names: TeamNames,
     tz: tzinfo,
 ) -> InputRichMessage:
-    """Turnir jadvali: o'rin, klub, o'yinlar, g'alaba, durang, mag'lubiyat, to'plar, farq, ochko.
+    """Turnir jadvali: o'rin, klub, o'yinlar, g'alaba, durang, mag'lubiyat, to'plar, ochko.
 
-    Ustunlar ataylab to'liq: tor jadval telefonda xabar enining bir qisminigina egallaydi
-    (Telegram xabar enini ichidagi eng keng narsaga qarab belgilaydi — foydalanuvchi bilan
-    sinab ko'rilgan), to'liq jadval esa ekran eniga yoyiladi.
+    Ustunlar soni ikki telefonda sinab tanlangan. Kam bo'lsa, jadval Android'da ekranning bir
+    qisminigina egallaydi (Telegram xabar enini ichidagi eng keng narsaga qarab belgilaydi).
+    Ko'p bo'lsa (to'plar farqi ham qo'shilsa), iPhone'da klub ustuni torayib, ikki so'zli nom
+    ikki qatorga bo'linadi. Shuning uchun farq ustuni yo'q, klub nomi esa bo'linmaydi.
     """
     header = [
         _cell("#", "right", header=True),
@@ -198,7 +205,6 @@ def standings_message(
         _cell(t("standings-col-draws"), "right", header=True),
         _cell(t("standings-col-losses"), "right", header=True),
         _cell(t("standings-col-goals"), "center", header=True),
-        _cell(DIFFERENCE_LABEL, "right", header=True),
         _cell(t("standings-col-points"), "right", header=True),
     ]
     blocks: list = [_heading(t(f"competition-{competition}"), TITLE_SIZE)]
@@ -218,18 +224,15 @@ def standings_message(
             group = row.group
             if group:
                 blocks.append(_heading(group, LEAGUE_SIZE))
-        # Farq ishorasi bilan (+14, -7); nol bo'lsa ishorasiz.
-        difference = f"{row.goal_difference:+d}" if row.goal_difference else "0"
         cells.append(
             [
                 _cell(str(row.position), "right"),
-                _cell(_club(names.short(row.team, t.locale), row.team_emoji)),
+                _cell(_club(names.short(row.team, t.locale), row.team_emoji, nowrap=True)),
                 _cell(str(row.played), "right"),
                 _cell(str(row.wins), "right"),
                 _cell(str(row.draws), "right"),
                 _cell(str(row.losses), "right"),
                 _cell(f"{row.goals_for}:{row.goals_against}", "center"),
-                _cell(difference, "right"),
                 _cell(RichTextBold(text=str(row.points)), "right"),
             ]
         )
