@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
-from aiogram.methods import AnswerCallbackQuery, EditMessageText
+from aiogram.methods import AnswerCallbackQuery, EditMessageReplyMarkup
 from sqlalchemy import select, update
 
 from factories import match
@@ -41,17 +41,7 @@ async def clubs(db) -> None:
 
 
 def keyboard_rows(message) -> list[list[str]]:
-    return [[button.text for button in row] for row in message.reply_markup.inline_keyboard]
-
-
-def keyboard_data(message) -> list[str]:
-    return [b.callback_data for row in message.reply_markup.inline_keyboard for b in row]
-
-
-def last_edit(chat) -> EditMessageText:
-    edit = chat.requests[-1]
-    assert isinstance(edit, EditMessageText)
-    return edit
+    return [[button.text for button in row] for row in message.reply_markup.keyboard]
 
 
 # --- Baza
@@ -145,7 +135,16 @@ async def test_toggle_unknown_team(db):
         assert await toggle_favorite(session, 1, 999_999) is None
 
 
-# --- Bot
+# --- Bot: pastki klaviatura
+
+
+def done(i18n, locale: str = "uz") -> str:
+    return i18n.translate(locale, "favorites-done")
+
+
+async def open_league(chat, i18n, competition: str = "epl", locale: str = "uz"):
+    [sent] = await chat.send(i18n.translate(locale, f"competition-{competition}"))
+    return sent
 
 
 async def test_empty_state_offers_leagues(chat, i18n):
@@ -157,179 +156,198 @@ async def test_empty_state_offers_leagues(chat, i18n):
         "Klub qo'shish yoki olib tashlash uchun ligani tanlang."
     )
     t = i18n.translator("uz")
+    # Ligalar xabar ostida emas, pastki klaviaturada.
     assert keyboard_rows(sent) == [
         [t("competition-ucl")],
-        [t("competition-epl")],
-        [t("competition-laliga")],
+        [t("competition-epl"), t("competition-laliga")],
+        ["✅ Tayyor"],
     ]
-    assert keyboard_data(sent) == ["favl:ucl:0", "favl:epl:0", "favl:laliga:0"]
 
 
 async def test_league_shows_its_clubs_sorted_in_user_language(chat, clubs, i18n):
-    await chat.press("favl:epl:0")
+    sent = await open_league(chat, i18n)
 
-    edit = last_edit(chat)
-    assert edit.text == (
+    assert sent.text == (
         f"<b>{i18n.translate('uz', 'competition-epl')}</b>\n\n"
         "Klubni bosib tanlang. Qayta bossangiz, olib tashlanadi."
     )
-    assert keyboard_rows(edit) == [
+    assert keyboard_rows(sent) == [
         ["Arsenal", "Everton"],
         ["Liverpul", "Manchester Siti"],
-        ["⬅️ Ligalar"],
+        ["⬅️ Ligalar", "✅ Tayyor"],
     ]
-    assert keyboard_data(edit)[-1] == "fav"
 
 
-async def test_club_names_follow_language(make_chat, clubs):
+async def test_club_names_follow_language(make_chat, clubs, i18n):
     chat = make_chat()
     await chat.choose_language("ru")
 
-    await chat.press("favl:epl:0")
+    sent = await open_league(chat, i18n, locale="ru")
 
-    assert keyboard_rows(last_edit(chat))[:2] == [
+    assert keyboard_rows(sent) == [
         ["Арсенал", "Ливерпуль"],
         ["Манчестер Сити", "Эвертон"],
+        ["⬅️ Лиги", "✅ Готово"],
     ]
 
 
-async def test_tapping_a_club_selects_and_tapping_again_removes(chat, db, clubs):
-    arsenal = await team_id(db, "Arsenal")
+async def test_tapping_a_club_selects_and_tapping_again_removes(chat, db, clubs, i18n):
+    await open_league(chat, i18n)
 
-    await chat.press(f"favt:epl:0:{arsenal}")
+    [added] = await chat.send("Arsenal")
 
-    answer = chat.requests[0]
-    assert isinstance(answer, AnswerCallbackQuery)
-    assert answer.text == "✅ Qo'shildi: Arsenal"
-    assert keyboard_rows(last_edit(chat))[0] == ["✅ Arsenal", "Everton"]
+    assert added.text == "✅ Qo'shildi: Arsenal"
+    # Javob bilan klaviatura yangilanadi: tanlangan klub belgilangan.
+    assert keyboard_rows(added)[0] == ["✅ Arsenal", "Everton"]
     assert await favorite_names(db, chat.user_id) == ["Arsenal"]
 
-    await chat.press(f"favt:epl:0:{arsenal}")
+    [removed] = await chat.send("✅ Arsenal")
 
-    assert chat.requests[0].text == "❌ Olib tashlandi: Arsenal"
-    assert keyboard_rows(last_edit(chat))[0] == ["Arsenal", "Everton"]
+    assert removed.text == "❌ Olib tashlandi: Arsenal"
+    assert keyboard_rows(removed)[0] == ["Arsenal", "Everton"]
     assert await favorite_names(db, chat.user_id) == []
 
 
-async def test_club_logos_are_shown_on_buttons_and_in_the_chosen_list(chat, db, clubs):
+async def test_club_logos_are_shown_on_buttons_and_in_replies(chat, db, clubs, i18n):
     async with db.begin() as session:
         await session.execute(update(Team).where(Team.name == "Arsenal").values(emoji_id="5001"))
-    arsenal = await team_id(db, "Arsenal")
 
-    await chat.press(f"favt:epl:0:{arsenal}")
-
-    buttons = [button for row in last_edit(chat).reply_markup.inline_keyboard for button in row]
-    icons = {button.text: button.icon_custom_emoji_id for button in buttons}
-    assert icons["✅ Arsenal"] == "5001"
+    sent = await open_league(chat, i18n)
+    icons = {b.text: b.icon_custom_emoji_id for row in sent.reply_markup.keyboard for b in row}
+    assert icons["Arsenal"] == "5001"
     # Emojisi hali yaratilmagan klub tugmasi logotipsiz qoladi.
     assert icons["Everton"] is None
+
+    [added] = await chat.send("Arsenal")
+    assert added.text == '✅ Qo\'shildi: <tg-emoji emoji-id="5001">⚽</tg-emoji> Arsenal'
 
     [root] = await chat.send(ROOT_BUTTON)
     assert '• <tg-emoji emoji-id="5001">⚽</tg-emoji> Arsenal' in root.text
 
 
-async def test_several_clubs_from_different_leagues(chat, db, clubs):
-    await chat.press(f"favt:epl:0:{await team_id(db, 'Liverpool')}")
-    await chat.press(f"favt:laliga:0:{await team_id(db, 'Real Madrid')}")
-    await chat.press(f"favt:laliga:0:{await team_id(db, 'Barcelona')}")
+async def test_several_clubs_from_different_leagues(chat, db, clubs, i18n):
+    await open_league(chat, i18n)
+    await chat.send("Arsenal")
+    await chat.send("Liverpul")
+    [leagues] = await chat.send("⬅️ Ligalar")
+    assert "• Arsenal\n• Liverpul" in leagues.text
 
-    assert await favorite_names(db, chat.user_id) == ["Liverpool", "Real Madrid", "Barcelona"]
+    await open_league(chat, i18n, "laliga")
+    await chat.send("Barselona")
 
-    expected = (
-        "⭐ <b>Sevimli klublar</b>\n\n"
-        "Tanlangan klublar:\n"
-        "• Liverpul\n"
-        "• Real Madrid\n"
-        "• Barselona\n\n"
-        "Klub qo'shish yoki olib tashlash uchun ligani tanlang."
+    assert await favorite_names(db, chat.user_id) == ["Arsenal", "Liverpool", "Barcelona"]
+
+    [summary] = await chat.send(done(i18n))
+    assert summary.text == (
+        "⭐ <b>Sevimli klublaringiz:</b>\n"
+        "• Arsenal\n• Liverpul\n• Barselona\n\n"
+        "Ularning o'yinlari haqida eslatib turaman."
     )
-    [sent] = await chat.send(ROOT_BUTTON)
-    assert sent.text == expected
-    # "Ligalar" tugmasi ham shu sahifaga qaytaradi.
-    await chat.press("fav")
-    assert last_edit(chat).text == expected
+    # "Tayyor" asosiy menyuga qaytaradi.
+    assert keyboard_rows(summary) == [["⚽ Yaqin o'yinlar", "🏁 Oxirgi o'yinlar"], ["⚙️ Sozlamalar"]]
 
 
-async def test_favorites_belong_to_each_user_separately(make_chat, db, clubs):
-    arsenal = await team_id(db, "Arsenal")
+async def test_done_without_clubs_tells_where_to_pick_them_later(chat, i18n):
+    await chat.send(ROOT_BUTTON)
+
+    [summary] = await chat.send(done(i18n))
+
+    assert summary.text.startswith("Klub tanlanmadi.")
+    assert keyboard_rows(summary)[-1] == ["⚙️ Sozlamalar"]
+
+
+async def test_favorites_belong_to_each_user_separately(make_chat, db, clubs, i18n):
     first, second = make_chat(user_id=1), make_chat(user_id=2)
-    for chat in (first, second):
-        await chat.choose_language("uz")
+    await first.choose_language("uz")
+    await second.choose_language("uz")
 
-    await first.press(f"favt:epl:0:{arsenal}")
-    await second.press("favl:epl:0")
+    await open_league(first, i18n)
+    await first.send("Arsenal")
+    # Ikkinchi foydalanuvchi boshqa ligada: har kimning holati o'ziniki.
+    await open_league(second, i18n, "laliga")
+    [reply] = await second.send("Real Madrid")
 
+    assert reply.text == "✅ Qo'shildi: Real Madrid"
     assert await favorite_names(db, 1) == ["Arsenal"]
-    assert await favorite_names(db, 2) == []
-    assert keyboard_rows(last_edit(second))[0] == ["Arsenal", "Everton"]
+    assert await favorite_names(db, 2) == ["Real Madrid"]
 
 
-async def test_long_list_is_split_into_pages(chat, db):
-    # 22 ta klub: birinchi sahifada 20 ta, ikkinchisida 2 ta.
+async def test_whole_league_fits_one_scrollable_keyboard(chat, db, i18n):
+    # Chempionlar ligasi asosiy bosqichi: 36 ta klub, sahifalarsiz.
     await store(
         db,
         *[
             match(
-                f"s{i}",
+                f"u{index}",
                 KICKOFF,
-                f"Klub {2 * i:02}",
-                f"Klub {2 * i + 1:02}",
+                f"Klub {index:02d}",
+                f"Klub {index + 18:02d}",
                 competition="ucl",
                 round="League Stage - 1",
             )
-            for i in range(11)
+            for index in range(1, 19)
         ],
     )
 
-    await chat.press("favl:ucl:0")
-    first = last_edit(chat)
-    assert first.text.split("\n")[0].endswith(" · 1/2")
-    assert sum(data.startswith("favt:ucl:0:") for data in keyboard_data(first)) == 20
-    assert keyboard_rows(first)[-2:] == [["▶️"], ["⬅️ Ligalar"]]
-    assert "favl:ucl:1" in keyboard_data(first)
+    sent = await open_league(chat, i18n, "ucl")
 
-    await chat.press("favl:ucl:1")
-    second = last_edit(chat)
-    assert second.text.split("\n")[0].endswith(" · 2/2")
-    assert keyboard_rows(second) == [["Klub 20", "Klub 21"], ["◀️"], ["⬅️ Ligalar"]]
+    rows = keyboard_rows(sent)
+    assert len(rows) == 19
+    assert rows[0] == ["Klub 01", "Klub 02"]
+    assert rows[17] == ["Klub 35", "Klub 36"]
 
-    # Mavjud bo'lmagan sahifa oxirgi sahifaga keltiriladi.
-    await chat.press("favl:ucl:9")
-    assert keyboard_rows(last_edit(chat))[0] == ["Klub 20", "Klub 21"]
+    [reply] = await chat.send("Klub 36")
+    assert keyboard_rows(reply)[17] == ["Klub 35", "✅ Klub 36"]
 
 
-async def test_selection_on_second_page_stays_on_that_page(chat, db):
-    await store(
-        db,
-        *[
-            match(
-                f"s{i}",
-                KICKOFF,
-                f"Klub {2 * i:02}",
-                f"Klub {2 * i + 1:02}",
-                competition="ucl",
-                round="League Stage - 1",
-            )
-            for i in range(11)
-        ],
-    )
+async def test_league_without_data(chat, i18n):
+    sent = await open_league(chat, i18n, "ucl")
 
-    await chat.press(f"favt:ucl:1:{await team_id(db, 'Klub 21')}")
-
-    assert keyboard_rows(last_edit(chat))[0] == ["Klub 20", "✅ Klub 21"]
+    assert sent.text.endswith("Bu liga klublari hali yuklanmagan.")
+    assert keyboard_rows(sent) == [["⬅️ Ligalar", "✅ Tayyor"]]
 
 
-async def test_league_without_data(chat):
-    await chat.press("favl:laliga:0")
+async def test_unknown_text_in_club_list_keeps_the_list(chat, db, clubs, i18n):
+    await open_league(chat, i18n)
 
-    edit = last_edit(chat)
-    assert edit.text.endswith("Bu liga klublari hali yuklanmagan.")
-    assert keyboard_rows(edit) == [["⬅️ Ligalar"]]
+    [reply] = await chat.send("Barselona")  # bu ligada bunday klub yo'q
+
+    assert reply.text == "Pastdagi tugmalardan tanlang 👇"
+    assert keyboard_rows(reply)[0] == ["Arsenal", "Everton"]
+    assert await favorite_names(db, chat.user_id) == []
 
 
-@pytest.mark.parametrize("data", ["favl:nba:0", "favt:nba:0:1", "favt:epl:0:999999"])
-async def test_unknown_league_or_club_is_ignored(chat, db, clubs, data):
-    await chat.press(data)
+async def test_club_name_outside_the_list_is_not_a_choice(chat, db, clubs, i18n):
+    # Klublar ro'yxati ochilmagan: klub nomi oddiy tushunarsiz xabar.
+    [reply] = await chat.send("Arsenal")
 
-    assert [type(request) for request in chat.requests] == [AnswerCallbackQuery]
+    assert reply.text == i18n.translate("uz", "unknown-message")
+    assert await favorite_names(db, chat.user_id) == []
+
+    # "Tayyor"dan keyin ham shunday: ro'yxat yopilgan.
+    await open_league(chat, i18n)
+    await chat.send(done(i18n))
+    [reply] = await chat.send("Arsenal")
+    assert reply.text == i18n.translate("uz", "unknown-message")
+    assert await favorite_names(db, chat.user_id) == []
+
+
+@pytest.mark.parametrize("command", ["/start", "/help"])
+async def test_command_closes_the_club_list(chat, db, clubs, i18n, command):
+    await open_league(chat, i18n)
+
+    await chat.send(command)
+    await chat.send("Arsenal")
+
+    assert await favorite_names(db, chat.user_id) == []
+
+
+@pytest.mark.parametrize("data", ["fav", "favl:epl:0", "favt:epl:0:1"])
+async def test_buttons_left_in_old_messages_are_retired(chat, db, clubs, data):
+    assert await chat.press(data) == []
+
+    answer, edit = chat.requests
+    assert isinstance(answer, AnswerCallbackQuery)
+    assert answer.text == "Bu tugmalar eskirgan. Pastdagi menyudan foydalaning."
+    assert isinstance(edit, EditMessageReplyMarkup) and edit.reply_markup is None
     assert await favorite_names(db, chat.user_id) == []

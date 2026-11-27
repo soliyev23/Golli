@@ -1,42 +1,61 @@
-"""Sevimli klublar bo'limining matn va tugmalari."""
+"""Sevimli klublar bo'limining matnlari va pastki (reply) klaviaturalari.
 
-from math import ceil
+Bo'lim ikki bosqichli: avval liga tanlanadi, keyin shu liganing klublari. Tugmalar pastki
+klaviaturada turadi, shuning uchun bosilgan tugma oddiy matnli xabar bo'lib keladi va
+find_club uni klub nomiga qarab topadi.
+"""
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
-from golli.bot.callbacks import FavoriteListCallback, FavoritesCallback, FavoriteToggleCallback
 from golli.bot.views import club_label
 from golli.competitions import COMPETITIONS
 from golli.db.models import Team
 from golli.i18n import Translator
 from golli.services.team_names import TeamNames
 
-# Bitta sahifadagi klublar: ikki ustun x o'n qator. APL va La Liga bitta sahifaga sig'adi.
-PAGE_SIZE = 20
 COLUMNS = 2
+# Tanlangan klub tugmasi shu belgi bilan boshlanadi.
+SELECTED_MARK = "✅ "
+
+
+def _club_lines(teams: list[Team], t: Translator, names: TeamNames) -> list[str]:
+    return [f"• {club_label(team.name, team.emoji_id, t, names)}" for team in teams]
 
 
 def root_text(favorites: list[Team], t: Translator, names: TeamNames) -> str:
     lines = [t("favorites-title"), ""]
     if favorites:
-        lines.append(t("favorites-current"))
-        lines += [f"• {club_label(team.name, team.emoji_id, t, names)}" for team in favorites]
+        lines += [t("favorites-current"), *_club_lines(favorites, t, names)]
     else:
         lines.append(t("favorites-empty"))
     lines += ["", t("favorites-hint")]
     return "\n".join(lines)
 
 
-def root_keyboard(t: Translator) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=t(f"competition-{competition}"),
-                    callback_data=FavoriteListCallback(competition=competition).pack(),
-                )
-            ]
-            for competition in COMPETITIONS
+def summary_text(favorites: list[Team], t: Translator, names: TeamNames) -> str:
+    """Tanlash tugagach ko'rsatiladigan yakun."""
+    if not favorites:
+        return t("favorites-none-saved")
+    lines = [t("favorites-saved"), *_club_lines(favorites, t, names)]
+    return "\n".join([*lines, "", t("favorites-saved-note")])
+
+
+def _keyboard(rows: list[list[KeyboardButton]]) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, is_persistent=True)
+
+
+def _in_rows(buttons: list[KeyboardButton]) -> list[list[KeyboardButton]]:
+    return [buttons[index : index + COLUMNS] for index in range(0, len(buttons), COLUMNS)]
+
+
+def leagues_keyboard(t: Translator) -> ReplyKeyboardMarkup:
+    leagues = [KeyboardButton(text=t(f"competition-{code}")) for code in COMPETITIONS]
+    # Birinchi liga nomi uzun ("Chempionlar ligasi"), shuning uchun u alohida qatorda.
+    return _keyboard(
+        [
+            leagues[:1],
+            *_in_rows(leagues[1:]),
+            [KeyboardButton(text=t("favorites-done"))],
         ]
     )
 
@@ -46,55 +65,35 @@ def sort_teams(teams: list[Team], t: Translator, names: TeamNames) -> list[Team]
     return sorted(teams, key=lambda team: names.get(team.name, t.locale).casefold())
 
 
-def page_count(teams: list[Team]) -> int:
-    return max(1, ceil(len(teams) / PAGE_SIZE))
-
-
-def list_text(competition: str, page: int, pages: int, has_teams: bool, t: Translator) -> str:
+def clubs_text(competition: str, has_teams: bool, t: Translator) -> str:
     title = f"<b>{t(f'competition-{competition}')}</b>"
-    if pages > 1:
-        title += f" · {page + 1}/{pages}"
     return f"{title}\n\n{t('favorites-pick' if has_teams else 'favorites-no-teams')}"
 
 
-def list_keyboard(
-    competition: str,
-    teams: list[Team],
-    selected: set[int],
-    page: int,
-    t: Translator,
-    names: TeamNames,
-) -> InlineKeyboardMarkup:
-    """`teams` — tartiblangan to'liq ro'yxat; shundan `page`-sahifa chiziladi."""
-    visible = teams[page * PAGE_SIZE : (page + 1) * PAGE_SIZE]
-    buttons = [
-        InlineKeyboardButton(
-            text=("✅ " if team.id in selected else "") + names.get(team.name, t.locale),
+def clubs_keyboard(
+    teams: list[Team], selected: set[int], t: Translator, names: TeamNames
+) -> ReplyKeyboardMarkup:
+    """Liganing barcha klublari (ro'yxat uzun bo'lsa, klaviatura aylantiriladi)."""
+    clubs = [
+        KeyboardButton(
+            text=(SELECTED_MARK if team.id in selected else "") + names.get(team.name, t.locale),
             # Klub logotipi tugma matni oldida (emoji hali yaratilmagan bo'lsa — None).
             icon_custom_emoji_id=team.emoji_id,
-            callback_data=FavoriteToggleCallback(
-                competition=competition, page=page, team_id=team.id
-            ).pack(),
         )
-        for team in visible
+        for team in teams
     ]
-    rows = [buttons[index : index + COLUMNS] for index in range(0, len(buttons), COLUMNS)]
-
-    def page_button(text: str, target: int) -> InlineKeyboardButton:
-        return InlineKeyboardButton(
-            text=text,
-            callback_data=FavoriteListCallback(competition=competition, page=target).pack(),
-        )
-
-    pager = []
-    if page > 0:
-        pager.append(page_button("◀️", page - 1))
-    if page + 1 < page_count(teams):
-        pager.append(page_button("▶️", page + 1))
-    if pager:
-        rows.append(pager)
-
-    rows.append(
-        [InlineKeyboardButton(text=t("favorites-back"), callback_data=FavoritesCallback().pack())]
+    return _keyboard(
+        [
+            *_in_rows(clubs),
+            [
+                KeyboardButton(text=t("favorites-back")),
+                KeyboardButton(text=t("favorites-done")),
+            ],
+        ]
     )
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def find_club(text: str, teams: list[Team], t: Translator, names: TeamNames) -> Team | None:
+    """Bosilgan tugma matni bo'yicha klub; bunday klub bo'lmasa None."""
+    wanted = text.removeprefix(SELECTED_MARK).strip()
+    return next((team for team in teams if names.get(team.name, t.locale) == wanted), None)

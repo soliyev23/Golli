@@ -31,6 +31,9 @@ def menu_buttons(message: SendMessage) -> list[str]:
     return [button.text for row in message.reply_markup.keyboard for button in row]
 
 
+MAIN_MENU = ["⚽ Yaqin o'yinlar", "🏁 Oxirgi o'yinlar", "⚙️ Sozlamalar"]
+
+
 def is_language_prompt(sent: list[SendMessage]) -> bool:
     return len(sent) == 1 and [
         button.callback_data for row in sent[0].reply_markup.inline_keyboard for button in row
@@ -71,15 +74,17 @@ async def test_choosing_language_saves_it_and_welcomes(make_chat, db, i18n, code
 
     t = i18n.translator(code)
     assert (await get_user(db, chat.user_id)).lang == code
-    assert texts(sent) == [t("start-welcome", name="Ali")]
-    assert menu_buttons(sent[0]) == [
-        t("menu-matches"),
-        t("menu-recent"),
-        t("menu-favorites"),
-        t("menu-language"),
+    # Yangi foydalanuvchi: salomlashuvdan keyin darhol sevimli klub tanlash taklif qilinadi.
+    assert texts(sent) == [t("start-welcome", name="Ali"), t("favorites-onboarding")]
+    assert sent[0].reply_markup is None
+    assert menu_buttons(sent[1]) == [
+        t("competition-ucl"),
+        t("competition-epl"),
+        t("competition-laliga"),
+        t("favorites-done"),
     ]
 
-    answer, edit, _, commands = chat.requests
+    answer, edit, _, _, commands = chat.requests
     assert isinstance(answer, AnswerCallbackQuery)
     assert isinstance(edit, EditMessageText) and edit.text == t("lang-set")
     assert isinstance(commands, SetMyCommands) and commands.scope.chat_id == chat.user_id
@@ -90,13 +95,50 @@ async def test_choosing_language_saves_it_and_welcomes(make_chat, db, i18n, code
     ]
 
 
-async def test_start_after_choice_shows_welcome_in_chosen_language(make_chat, i18n):
+async def test_start_without_favorites_offers_to_pick_a_club(make_chat, i18n):
     chat = make_chat()
     await chat.choose_language("ru")
 
     sent = await chat.send("/start")
 
-    assert texts(sent) == [i18n.translate("ru", "start-welcome", name="Ali")]
+    t = i18n.translator("ru")
+    assert texts(sent) == [t("start-welcome", name="Ali"), t("favorites-onboarding")]
+    assert menu_buttons(sent[1])[-1] == t("favorites-done")
+
+
+async def test_start_with_favorites_goes_straight_to_main_menu(chat, db, i18n):
+    await store(db, match("m1", datetime(2026, 11, 28, 15, 0, tzinfo=ZoneInfo("UTC"))))
+    await chat.send(i18n.translate("uz", "competition-epl"))
+    await chat.send("Arsenal")
+
+    sent = await chat.send("/start")
+
+    assert texts(sent) == [i18n.translate("uz", "start-welcome", name="Ali")]
+    assert menu_buttons(sent[0]) == MAIN_MENU
+
+
+async def test_new_user_picks_a_club_right_after_choosing_language(make_chat, db, i18n):
+    await store(db, match("m1", datetime(2026, 11, 28, 15, 0, tzinfo=ZoneInfo("UTC"))))
+    chat = make_chat()
+    await chat.send("/start")
+    await chat.choose_language("uz")
+
+    [clubs] = await chat.send(i18n.translate("uz", "competition-epl"))
+    assert "Arsenal" in menu_buttons(clubs)
+    [added] = await chat.send("Arsenal")
+    assert added.text == "✅ Qo'shildi: Arsenal"
+    [summary] = await chat.send("✅ Tayyor")
+
+    assert "• Arsenal" in summary.text
+    assert menu_buttons(summary) == MAIN_MENU
+
+
+async def test_changing_language_later_does_not_restart_club_picking(chat, i18n):
+    sent = await chat.choose_language("en")
+
+    t = i18n.translator("en")
+    assert texts(sent) == [t("start-welcome", name="Ali")]
+    assert menu_buttons(sent[0]) == [t("menu-matches"), t("menu-recent"), t("menu-settings")]
 
 
 async def test_language_can_be_changed_later(chat, db, i18n):
@@ -161,7 +203,45 @@ async def test_unknown_text_gets_hint_with_menu(chat, i18n):
     sent = await chat.send("salom")
 
     assert texts(sent) == [i18n.translate("uz", "unknown-message")]
-    assert len(menu_buttons(sent[0])) == 4
+    assert menu_buttons(sent[0]) == MAIN_MENU
+
+
+# --- Sozlamalar
+
+
+async def test_settings_hold_favourites_and_language(chat, i18n):
+    [settings] = await chat.send("⚙️ Sozlamalar")
+
+    assert settings.text == "⚙️ <b>Sozlamalar</b>\n\nKerakli bo'limni tanlang 👇"
+    assert [[button.text for button in row] for row in settings.reply_markup.keyboard] == [
+        ["⭐ Sevimli klublar", "🌐 Til"],
+        ["⬅️ Orqaga"],
+    ]
+
+    [favorites] = await chat.send("⭐ Sevimli klublar")
+    assert favorites.text.startswith("⭐ <b>Sevimli klublar</b>")
+    assert is_language_prompt(await chat.send("🌐 Til"))
+
+
+async def test_back_from_settings_returns_to_main_menu(chat):
+    await chat.send("⚙️ Sozlamalar")
+
+    [sent] = await chat.send("⬅️ Orqaga")
+
+    assert sent.text == "🏠 Asosiy menyu"
+    assert menu_buttons(sent) == MAIN_MENU
+
+
+@pytest.mark.parametrize("code", ["ru", "en"])
+async def test_settings_buttons_work_in_other_languages(make_chat, i18n, code):
+    chat = make_chat()
+    await chat.choose_language(code)
+    t = i18n.translator(code)
+
+    [settings] = await chat.send(t("menu-settings"))
+    assert menu_buttons(settings) == [t("menu-favorites"), t("menu-language"), t("menu-back")]
+    [back] = await chat.send(t("menu-back"))
+    assert back.text == t("menu-main")
 
 
 # --- Yaqin o'yinlar
@@ -261,12 +341,7 @@ async def test_lists_have_no_day_buttons_and_refresh_the_menu(chat, db, schedule
     [sent] = await chat.send(button)
 
     # Xabar ostida kundan kunga o'tish tugmalari yo'q; javob bilan asosiy menyu keladi.
-    assert menu_buttons(sent) == [
-        "⚽ Yaqin o'yinlar",
-        "🏁 Oxirgi o'yinlar",
-        "⭐ Sevimli klublar",
-        "🌐 Til",
-    ]
+    assert menu_buttons(sent) == MAIN_MENU
 
 
 @pytest.mark.parametrize("data", ["day:2026-11-26", "day:bugun-emas", "upcoming"])

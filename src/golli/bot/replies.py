@@ -3,14 +3,24 @@
 from html import escape
 from typing import Any
 
+from golli.bot.favorites_view import leagues_keyboard
 from golli.bot.keyboards import language_picker, main_menu
 from golli.i18n import I18n, Translator
 
 
-def welcome(t: Translator, first_name: str) -> dict[str, Any]:
+def welcome(t: Translator, first_name: str, *, menu: bool = True) -> dict[str, Any]:
+    """Salomlashuv. `menu=False` — ortidan boshqa klaviaturali xabar yuboriladigan holat uchun."""
     # Ism HTML sifatida yuboriladi, shuning uchun undagi < > & belgilar ekranlanadi.
     name = escape(first_name, quote=False)
-    return {"text": t("start-welcome", name=name), "reply_markup": main_menu(t)}
+    reply: dict[str, Any] = {"text": t("start-welcome", name=name)}
+    if menu:
+        reply["reply_markup"] = main_menu(t)
+    return reply
+
+
+def favorites_onboarding(t: Translator) -> dict[str, Any]:
+    """Yangi foydalanuvchiga sevimli klub tanlash taklifi: ligalar klaviaturasi bilan."""
+    return {"text": t("favorites-onboarding"), "reply_markup": leagues_keyboard(t)}
 
 
 def language_prompt(i18n: I18n) -> dict[str, Any]:

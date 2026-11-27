@@ -1,13 +1,17 @@
 from typing import Any
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from golli.bot import favorites_view as view
 from golli.bot.callbacks import FavoriteListCallback, FavoritesCallback, FavoriteToggleCallback
-from golli.bot.filters import MenuButton
+from golli.bot.filters import LeagueButton, MenuButton
+from golli.bot.keyboards import main_menu
+from golli.bot.views import club_label
 from golli.competitions import COMPETITIONS
 from golli.db.favorites import competition_teams, favorite_teams, toggle_favorite
 from golli.db.models import User
@@ -17,100 +21,124 @@ from golli.services.team_names import TeamNames
 router = Router(name="favorites")
 
 
-async def _root(
+class FavoritesFlow(StatesGroup):
+    # Foydalanuvchi bitta liganing klublari ro'yxatida turibdi: bosgan tugmasining matni
+    # klub nomi deb o'qiladi. Qaysi liga ekani holat ma'lumotida ("competition") saqlanadi.
+    clubs = State()
+
+
+async def _leagues(
     session: AsyncSession, user: User, t: Translator, names: TeamNames
 ) -> dict[str, Any]:
     favorites = await favorite_teams(session, user.id)
-    return {"text": view.root_text(favorites, t, names), "reply_markup": view.root_keyboard(t)}
+    return {"text": view.root_text(favorites, t, names), "reply_markup": view.leagues_keyboard(t)}
 
 
-async def _team_list(
+async def _clubs(
     session: AsyncSession,
     user: User,
     competition: str,
-    page: int,
     t: Translator,
     names: TeamNames,
+    text: str | None = None,
 ) -> dict[str, Any]:
+    """Liga klublari klaviaturasi; `text` berilmasa, liga nomi va yo'riqnoma yoziladi."""
     teams = view.sort_teams(await competition_teams(session, competition), t, names)
-    pages = view.page_count(teams)
-    # Eski xabardagi tugma mavjud bo'lmagan sahifani ko'rsatishi mumkin.
-    page = min(max(page, 0), pages - 1)
     selected = {team.id for team in await favorite_teams(session, user.id)}
     return {
-        "text": view.list_text(competition, page, pages, bool(teams), t),
-        "reply_markup": view.list_keyboard(competition, teams, selected, page, t, names),
+        "text": text or view.clubs_text(competition, bool(teams), t),
+        "reply_markup": view.clubs_keyboard(teams, selected, t, names),
     }
 
 
-async def _edit(callback: CallbackQuery, content: dict[str, Any]) -> None:
+@router.message(MenuButton("menu-favorites"))
+@router.message(MenuButton("favorites-back"))
+async def show_leagues(
+    message: Message,
+    user: User,
+    session: AsyncSession,
+    t: Translator,
+    names: TeamNames,
+    state: FSMContext,
+) -> None:
+    await state.clear()
+    await message.answer(**await _leagues(session, user, t, names))
+
+
+@router.message(LeagueButton())
+async def show_clubs(
+    message: Message,
+    competition: str,
+    user: User,
+    session: AsyncSession,
+    t: Translator,
+    names: TeamNames,
+    state: FSMContext,
+) -> None:
+    await state.set_state(FavoritesFlow.clubs)
+    await state.update_data(competition=competition)
+    await message.answer(**await _clubs(session, user, competition, t, names))
+
+
+@router.message(MenuButton("favorites-done"))
+async def finish(
+    message: Message,
+    user: User,
+    session: AsyncSession,
+    t: Translator,
+    names: TeamNames,
+    state: FSMContext,
+) -> None:
+    await state.clear()
+    favorites = await favorite_teams(session, user.id)
+    await message.answer(view.summary_text(favorites, t, names), reply_markup=main_menu(t))
+
+
+# Klublar ro'yxatida turgan foydalanuvchining boshqa har qanday matni — klub tugmasi.
+@router.message(FavoritesFlow.clubs, F.text)
+async def toggle_club(
+    message: Message,
+    user: User,
+    session: AsyncSession,
+    t: Translator,
+    names: TeamNames,
+    state: FSMContext,
+) -> None:
+    competition = (await state.get_data()).get("competition")
+    if competition not in COMPETITIONS:
+        await state.clear()
+        await message.answer(**await _leagues(session, user, t, names))
+        return
+
+    teams = view.sort_teams(await competition_teams(session, competition), t, names)
+    team = view.find_club(message.text, teams, t, names)
+    if team is None:
+        hint = t("favorites-choose-hint")
+        await message.answer(**await _clubs(session, user, competition, t, names, text=hint))
+        return
+
+    _, selected = await toggle_favorite(session, user.id, team.id)
+    # Tanlov darhol saqlanadi: keyingi Telegram so'rovi xato bersa ham yo'qolmaydi.
+    await session.commit()
+    result = t(
+        "favorites-added" if selected else "favorites-removed",
+        team=club_label(team.name, team.emoji_id, t, names),
+    )
+    # Tugmadagi ✅ belgisi yangilanishi uchun klaviatura qayta yuboriladi.
+    await message.answer(**await _clubs(session, user, competition, t, names, text=result))
+
+
+# Avval bu bo'lim xabar ostidagi (inline) tugmalar bilan ishlagan. Eski xabarda qolgan
+# shunday tugma bosilsa, foydalanuvchi pastki menyuga yo'naltiriladi va tugmalar olinadi.
+@router.callback_query(FavoritesCallback.filter())
+@router.callback_query(FavoriteListCallback.filter())
+@router.callback_query(FavoriteToggleCallback.filter())
+async def retire_old_buttons(callback: CallbackQuery, t: Translator) -> None:
+    await callback.answer(t("buttons-outdated"))
     if not isinstance(callback.message, Message):
         return
     try:
-        await callback.message.edit_text(**content)
+        await callback.message.edit_reply_markup(reply_markup=None)
     except TelegramBadRequest as exc:
-        # Matn va tugmalar o'zgarmagan bo'lsa Telegram xato qaytaradi — qiladigan ish yo'q.
         if "message is not modified" not in str(exc):
             raise
-
-
-@router.message(MenuButton("menu-favorites"))
-async def show_favorites(
-    message: Message, user: User, session: AsyncSession, t: Translator, names: TeamNames
-) -> None:
-    await message.answer(**await _root(session, user, t, names))
-
-
-@router.callback_query(FavoritesCallback.filter())
-async def back_to_leagues(
-    callback: CallbackQuery, user: User, session: AsyncSession, t: Translator, names: TeamNames
-) -> None:
-    await callback.answer()
-    await _edit(callback, await _root(session, user, t, names))
-
-
-@router.callback_query(FavoriteListCallback.filter())
-async def show_teams(
-    callback: CallbackQuery,
-    callback_data: FavoriteListCallback,
-    user: User,
-    session: AsyncSession,
-    t: Translator,
-    names: TeamNames,
-) -> None:
-    await callback.answer()
-    if callback_data.competition not in COMPETITIONS:
-        return
-    await _edit(
-        callback,
-        await _team_list(session, user, callback_data.competition, callback_data.page, t, names),
-    )
-
-
-@router.callback_query(FavoriteToggleCallback.filter())
-async def toggle_team(
-    callback: CallbackQuery,
-    callback_data: FavoriteToggleCallback,
-    user: User,
-    session: AsyncSession,
-    t: Translator,
-    names: TeamNames,
-) -> None:
-    result = (
-        await toggle_favorite(session, user.id, callback_data.team_id)
-        if callback_data.competition in COMPETITIONS
-        else None
-    )
-    if result is None:
-        await callback.answer()
-        return
-
-    team, selected = result
-    # Tanlov darhol saqlanadi: keyingi Telegram so'rovi xato bersa ham yo'qolmaydi.
-    await session.commit()
-    key = "favorites-added" if selected else "favorites-removed"
-    await callback.answer(t(key, team=names.get(team.name, t.locale)))
-    await _edit(
-        callback,
-        await _team_list(session, user, callback_data.competition, callback_data.page, t, names),
-    )

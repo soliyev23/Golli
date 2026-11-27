@@ -16,10 +16,21 @@ def main_menu(t: Translator) -> ReplyKeyboardMarkup:
                 KeyboardButton(text=t("menu-matches")),
                 KeyboardButton(text=t("menu-recent")),
             ],
+            [KeyboardButton(text=t("menu-settings"))],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
+
+
+def settings_menu(t: Translator) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
             [
                 KeyboardButton(text=t("menu-favorites")),
                 KeyboardButton(text=t("menu-language")),
             ],
+            [KeyboardButton(text=t("menu-back"))],
         ],
         resize_keyboard=True,
         is_persistent=True,

@@ -12,6 +12,8 @@ menu-matches = ⚽ Yaqin o'yinlar
 menu-recent = 🏁 Oxirgi o'yinlar
 menu-favorites = ⭐ Sevimli klublar
 menu-language = 🌐 Til
+menu-settings = ⚙️ Sozlamalar
+menu-back = ⬅️ Orqaga
 
 ## Til tanlash
 
@@ -39,6 +41,8 @@ help-text =
 
     🏁 <b>Oxirgi o'yinlar</b> — oxirgi ikki o'yin kunining natijalari.
 
+    ⚙️ <b>Sozlamalar</b> — sevimli klublar va til.
+
     ⭐ <b>Sevimli klublar</b> — klub tanlang, uning o'yinlari haqida eslatib turaman:
     • o'yin kuni ertalab;
     • o'yinga 1 soat qolganda;
@@ -51,6 +55,12 @@ help-text =
 ## Umumiy javoblar
 
 unknown-message = Tushunmadim. Pastdagi tugmalardan foydalaning 👇
+menu-main = 🏠 Asosiy menyu
+buttons-outdated = Bu tugmalar eskirgan. Pastdagi menyudan foydalaning.
+settings-text =
+    ⚙️ <b>Sozlamalar</b>
+
+    Kerakli bo'limni tanlang 👇
 
 ## O'yinlar ro'yxati
 
@@ -86,6 +96,18 @@ favorites-added = ✅ Qo'shildi: { $team }
 favorites-removed = ❌ Olib tashlandi: { $team }
 favorites-back = ⬅️ Ligalar
 favorites-no-teams = Bu liga klublari hali yuklanmagan.
+favorites-done = ✅ Tayyor
+favorites-choose-hint = Pastdagi tugmalardan tanlang 👇
+favorites-saved = ⭐ <b>Sevimli klublaringiz:</b>
+favorites-saved-note = Ularning o'yinlari haqida eslatib turaman.
+favorites-none-saved = Klub tanlanmadi. Istalgan payt ⚙️ Sozlamalar → ⭐ Sevimli klublar orqali tanlashingiz mumkin.
+favorites-onboarding =
+    ⭐ <b>Sevimli klubingizni tanlang</b>
+
+    Uning o'yinlari haqida eslatib turaman: o'yin kuni ertalab, boshlanishiga 1 soat qolganda va o'yin tugagach.
+
+    Avval ligani tanlang 👇
+    Keyinroq ⚙️ Sozlamalar orqali o'zgartirishingiz mumkin.
 
 ## Eslatmalar
 

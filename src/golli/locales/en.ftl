@@ -12,6 +12,8 @@ menu-matches = ⚽ Upcoming matches
 menu-recent = 🏁 Recent matches
 menu-favorites = ⭐ Favourite clubs
 menu-language = 🌐 Language
+menu-settings = ⚙️ Settings
+menu-back = ⬅️ Back
 
 ## Language selection
 
@@ -39,6 +41,8 @@ help-text =
 
     🏁 <b>Recent matches</b> — results from the last two match days.
 
+    ⚙️ <b>Settings</b> — favourite clubs and language.
+
     ⭐ <b>Favourite clubs</b> — pick a club and I'll remind you about its matches:
     • on the morning of match day;
     • one hour before kick-off;
@@ -51,6 +55,12 @@ help-text =
 ## General replies
 
 unknown-message = I didn't get that. Please use the buttons below 👇
+menu-main = 🏠 Main menu
+buttons-outdated = These buttons are outdated. Please use the menu below.
+settings-text =
+    ⚙️ <b>Settings</b>
+
+    Choose a section 👇
 
 ## Match list
 
@@ -86,6 +96,18 @@ favorites-added = ✅ Added: { $team }
 favorites-removed = ❌ Removed: { $team }
 favorites-back = ⬅️ Leagues
 favorites-no-teams = This league's clubs haven't been loaded yet.
+favorites-done = ✅ Done
+favorites-choose-hint = Pick from the buttons below 👇
+favorites-saved = ⭐ <b>Your favourite clubs:</b>
+favorites-saved-note = I'll remind you about their matches.
+favorites-none-saved = No club picked. You can do it any time via ⚙️ Settings → ⭐ Favourite clubs.
+favorites-onboarding =
+    ⭐ <b>Pick your favourite club</b>
+
+    I'll remind you about its matches: on the morning of match day, one hour before kick-off and after the final whistle.
+
+    Choose a league first 👇
+    You can change this later in ⚙️ Settings.
 
 ## Reminders
 

@@ -322,6 +322,8 @@ def make_chat(
     dispatcher: Dispatcher, bot: Bot, schedule: ScheduleCache
 ) -> Callable[..., PrivateChat]:
     dispatcher["schedule"] = schedule
+    # Dispatcher sessiyaga bitta, shuning uchun suhbat holatlari har test oldidan tozalanadi.
+    dispatcher.fsm.storage.storage.clear()
 
     def factory(**kwargs) -> PrivateChat:
         return PrivateChat(dispatcher, bot, **kwargs)
