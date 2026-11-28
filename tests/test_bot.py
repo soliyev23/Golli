@@ -334,9 +334,7 @@ async def test_matches_today_are_shown_with_the_next_match_day(chat, db, schedul
     start, _ = day_bounds(schedule.today(), schedule.tz)
     await store(
         db,
-        finished(
-            "m1", start + timedelta(minutes=1), "Real Madrid", "Barcelona", competition="laliga"
-        ),
+        match("m0", start + timedelta(hours=23, minutes=50), "Arsenal", "Chelsea"),
         # Ertaga o'yin yo'q; keyingi o'yin kuni — indinga.
         match("m2", start + timedelta(days=2, hours=12), "Liverpool", "Everton"),
         match("m3", start + timedelta(days=5, hours=12), "Arsenal", "Manchester City"),
@@ -347,10 +345,50 @@ async def test_matches_today_are_shown_with_the_next_match_day(chat, db, schedul
     assert isinstance(sent, SendRichMessage)
     lines = text_of(sent).split("\n")
     assert lines[0].startswith("### ⚽ Bugun, ")
-    assert "⚽ Real Madrid | 2:1 | ⚽ Barselona" in lines
+    assert any(pair("Arsenal", "Chelsi") in line for line in lines)
     assert day_titles(text_of(sent)) == 2
     assert any(pair("Liverpul", "Everton") in line for line in lines)
-    assert "Arsenal" not in text_of(sent)
+    assert "Man Siti" not in text_of(sent)
+
+
+async def test_finished_match_moves_from_upcoming_to_recent(chat, db, schedule):
+    start, _ = day_bounds(schedule.today(), schedule.tz)
+    await store(
+        db,
+        finished(
+            "done", start + timedelta(minutes=1), "Real Madrid", "Barcelona", competition="laliga"
+        ),
+        match("next", start + timedelta(hours=23, minutes=50), "Arsenal", "Chelsea"),
+    )
+
+    [upcoming] = await chat.send("⚽ Yaqin o'yinlar")
+    [recent] = await chat.send("🏁 Oxirgi o'yinlar")
+
+    # Tugagan o'yin "Yaqin o'yinlar"da yo'q, "Oxirgi o'yinlar"da bor.
+    assert "Real Madrid" not in text_of(upcoming)
+    assert pair("Arsenal", "Chelsi") in text_of(upcoming)
+    assert "⚽ Real Madrid | 2:1 | ⚽ Barselona" in text_of(recent).split("\n")
+    assert "Arsenal" not in text_of(recent)
+
+
+async def test_day_with_only_finished_matches_drops_out_of_upcoming(chat, db, schedule):
+    start, _ = day_bounds(schedule.today(), schedule.tz)
+    await store(
+        db,
+        finished(
+            "done", start + timedelta(minutes=1), "Real Madrid", "Barcelona", competition="laliga"
+        ),
+        match("m2", start + timedelta(days=2, hours=12), "Liverpool", "Everton"),
+        match("m3", start + timedelta(days=3, hours=12), "Arsenal", "Manchester City"),
+    )
+
+    [sent] = await chat.send("⚽ Yaqin o'yinlar")
+
+    # Bugun hamma o'yin tugagan: ro'yxat keyingi ikki o'yin kunidan boshlanadi.
+    text = text_of(sent)
+    assert "Bugun" not in text and "Real Madrid" not in text
+    assert day_titles(text) == 2
+    assert pair("Liverpul", "Everton") in text and pair("Arsenal", "Man Siti") in text
 
 
 async def test_no_matches_today_starts_from_nearest_match_day(chat, db, schedule):
@@ -554,8 +592,9 @@ async def test_match_still_in_play_after_midnight_stays_in_the_list(db, schedule
     lines = await upcoming(schedule, i18n, names, tashkent(29, 0, 30))
     assert lines[0] == "### ⚽ Kecha, 28-noyabr, shanba"
     # Bitta jadvalda: tugagan o'yinda birinchi katak bo'sh, jonli o'yinda 🔴.
-    assert " | ⚽ Liverpul | 2:1 | ⚽ Everton" in lines
-    assert "🔴 | ⚽ Arsenal | 1:0 | ⚽ Man Siti" in lines
+    # Tugagan o'yin bu ro'yxatda yo'q (u "Oxirgi o'yinlar"da), jonli o'yin esa bor.
+    assert not any("Liverpul | 2:1" in line for line in lines)
+    assert "⚽ Arsenal | 1:0 | ⚽ Man Siti" in [line.removeprefix("🔴 | ") for line in lines]
     assert "### ⚽ Bugun, 29-noyabr, yakshanba" in lines
     assert "🔴 O'yin ketmoqda — hisob kechikib yangilanadi" in lines
     assert not any("Bryugge" in line for line in lines)

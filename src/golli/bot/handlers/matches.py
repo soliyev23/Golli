@@ -40,11 +40,23 @@ Days = list[tuple[date, list[DayMatch]]]
 
 
 async def upcoming_days(schedule: ScheduleCache, now: datetime) -> Days:
-    """ "Yaqin o'yinlar": eng yaqin o'yin kuni (bugun o'yin bo'lsa — bugun) va undan keyingisi."""
+    """ "Yaqin o'yinlar": hali tugamagan o'yinlari bor eng yaqin ikki kun.
+
+    Tugagan o'yin bu ro'yxatdan darhol chiqadi va "Oxirgi o'yinlar"da ko'rinadi. Barcha
+    o'yinlari tugagan kun (masalan, bugun) butunlay tushib qoladi, o'rniga keyingi o'yin kuni.
+    """
     today = schedule.today(now)
     first = await _first_day(schedule, today, now)
-    shown = [day for day in await schedule.get_match_days(now) if day >= first][:UPCOMING_DAYS]
-    return [(day, await schedule.get_day(day)) for day in shown]
+    days: Days = []
+    for day in await schedule.get_match_days(now):
+        if day < first:
+            continue
+        pending = [m for m in await schedule.get_day(day) if m.status is not MatchStatus.FINISHED]
+        if pending:
+            days.append((day, pending))
+        if len(days) == UPCOMING_DAYS:
+            break
+    return days
 
 
 async def recent_days(schedule: ScheduleCache, now: datetime) -> Days:
