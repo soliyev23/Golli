@@ -193,13 +193,13 @@ async def new_users_by_day(
     ]
 
 
-async def top_clubs(session: AsyncSession, limit: int = 10) -> list[tuple[str, int]]:
+async def top_clubs(session: AsyncSession) -> list[tuple[str, int]]:
+    """Tanlangan barcha klublar, eng ko'p tanlangani tepada."""
     rows = await session.execute(
         select(Team.name, func.count())
         .join(Favorite, Favorite.team_id == Team.id)
         .group_by(Team.name)
         .order_by(func.count().desc(), Team.name)
-        .limit(limit)
     )
     return [(name, count) for name, count in rows]
 

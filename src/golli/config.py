@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     # Klub logotiplari emoji to'plamining egasi bo'ladigan Telegram foydalanuvchisi (ID).
     # Berilmagan bo'lsa, emoji yaratilmaydi va klublar logotipsiz ko'rsatiladi.
     emoji_owner_id: int | None = None
+    # Yangi foydalanuvchi qo'shilganda xabar boradigan Telegram ID (bot egasi). Bo'sh — yubormaydi.
+    new_user_alert_chat_id: int | None = None
 
     default_locale: str = "uz"
     # O'yin vaqtlari va "bugun" tushunchasi shu vaqt mintaqasida hisoblanadi.

@@ -50,6 +50,13 @@
 .rank li { display: grid; gap: 5px; }
 .rank-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
 .rank-row b { font-weight: 600; }
+/* Klublar ro'yxati: karta 10 qatordan uzaymaydi, qolgani ichida aylantiriladi. */
+/* Klublar ro'yxati qator balandligini belgilamaydi: karta qo'shnilari (grafik) bo'yida qoladi,
+   sig'magan klublar karta ichida aylantiriladi. Tor ekranda — ko'pi bilan 10 qator. */
+.card.fill { display: flex; flex-direction: column; }
+.card.fill .card-body { flex: 1; position: relative; }
+.rank.scroll { --row: 31px; max-height: calc(10 * var(--row) + 9 * 10px); overflow-y: auto; padding-right: 6px; scrollbar-width: thin; }
+@media (min-width: 1181px) { .rank.scroll { position: absolute; inset: 16px 14px 20px 20px; max-height: none; } }
 .track { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .track i { display: block; height: 100%; border-radius: 999px; background: var(--brand); }
 .split { display: grid; gap: 18px; }
@@ -156,11 +163,11 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-head"><h2>Sevimli klublar</h2><span class="muted" style="font-size:13px">top 10</span></div>
+  <div class="card fill">
+    <div class="card-head"><h2>Sevimli klublar</h2><span class="muted" style="font-size:13px">{{ top_clubs | length }} ta klub</span></div>
     <div class="card-body">
       {% set club_max = (top_clubs | map(attribute=1) | max) if top_clubs else 1 %}
-      <ul class="rank">
+      <ul class="rank scroll">
         {% for name, count in top_clubs %}
         <li><div class="rank-row"><span>{{ club(name) }}</span><b>{{ count }}</b></div>
           <div class="track"><i style="width: {{ 100 * count / club_max }}%"></i></div></li>

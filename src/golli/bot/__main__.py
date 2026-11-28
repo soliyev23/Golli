@@ -38,6 +38,7 @@ async def main() -> None:
         i18n=i18n,
         schedule=ScheduleCache(redis, session_factory, settings.tz),
         names=TeamNames(),
+        new_user_alert_chat_id=settings.new_user_alert_chat_id,
     )
     bot = Bot(token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 

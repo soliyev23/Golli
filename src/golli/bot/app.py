@@ -24,6 +24,7 @@ def create_dispatcher(
     i18n: I18n,
     schedule: ScheduleCache,
     names: TeamNames,
+    new_user_alert_chat_id: int | None = None,
 ) -> Dispatcher:
     dispatcher = Dispatcher(storage=storage)
     # Handler va filtrlar bularni parametr nomi bo'yicha oladi.
@@ -33,7 +34,7 @@ def create_dispatcher(
 
     # Tartib muhim: avval sessiya ochiladi, keyin foydalanuvchi shu sessiyada topiladi.
     dispatcher.update.outer_middleware(DbSessionMiddleware(session_factory))
-    dispatcher.update.outer_middleware(UserMiddleware(i18n))
+    dispatcher.update.outer_middleware(UserMiddleware(i18n, new_user_alert_chat_id))
 
     # language birinchi: til tanlamagan foydalanuvchining har qanday xabari o'sha yerda ushlanadi.
     # menu oxirida: unda boshqa handler ushlamagan xabarlar uchun javob bor.
